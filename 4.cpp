@@ -75,8 +75,8 @@ template <int I, class... Ts>
 void print_tuple(std::tuple<Ts...> t) 
 {
     std::cout << "tuple(" << I << "): " << std::get<I>(t) << std::endl;
-    if constexpr (I > 0) { //< std::tuple_size<Ts...>::value) {
-        print_tuple<I-1, Ts...>(t);
+    if constexpr (I < std::tuple_size<decltype(t)>::value - 1) {
+        print_tuple<I+1, Ts...>(t);
     }
 }
 
@@ -99,7 +99,7 @@ int main()
 
     // heterogeneous tuple construction
     auto T = std::make_tuple(10, "Test", 3.14, 1.5f);
-    print_tuple<3>(T);
+    print_tuple<0>(T);
     //print_tuple<1>(T);
 
     //print_argv(1, 'a', "foo", 1.34);

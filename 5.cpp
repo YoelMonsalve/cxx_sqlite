@@ -169,8 +169,8 @@ namespace sqlite3
  * 
  * For example, the declarations 
  * 
- * sqlite3::generic_object<int> O_SQLITE_INT;
- * sqlite3::generic_object<int> O_SQLITE_DOUBLE;
+ * sqlite3::basic_object<int> O_SQLITE_INT;
+ * sqlite3::basic_object<int> O_SQLITE_DOUBLE;
  * 
  * allow to store an INTEGER, and a DOUBLE sqlite3 value, respectively. 
  * 
@@ -178,91 +178,137 @@ namespace sqlite3
  * once the object is destroyed.
  */
 template<class T>
-struct generic_object
+struct basic_object
 {
-    using value_type = T;          // my stored type: allows syntax generic_object<T>::value_type
-    using type = generic_object;   // my own type: allows syntax generic_object<T>::type (=T)
+    using value_type = T;          // my stored type: allows syntax basic_object<T>::value_type
+    using type = basic_object;     // my own type: allows syntax basic_object<T>::type (=T)
 
     /* initializer constructor */
-    generic_object(const value_type &v)
+    basic_object(const value_type &v)
     { 
         assert( (pdata = new value_type) != nullptr );
         *(T *)pdata = v;
     }
     /* initializer constructor (with a rv-qualified value)*/
-    generic_object(value_type&& v)
+    basic_object(value_type&& v)
     { 
         assert( (pdata = new value_type) != nullptr );
         *(T *)pdata = v;    /* as v in rvalue, the compiler might take some advantage of it,
                              * to execute this assignment */
     }
     /* destructor */
-    ~generic_object() { std::cout<<"Destructor called\n"; delete (value_type *)pdata; }
+    ~basic_object() { std::cout<<"Destructor called\n"; delete (value_type *)pdata; }
 
     /* Rule of Three */
     /* copy constructor */
-    generic_object(const generic_object<value_type> &o)
+    basic_object(const basic_object<value_type> &o)
     { 
         assert( (pdata = new value_type) != nullptr );
         *(T *)pdata = *(T *)o.pdata;
     }
     /* rvalue constructor */
-    generic_object(generic_object<value_type>&& o)
+    basic_object(basic_object<value_type>&& o)
     { 
         pdata = o.pdata;
         o.pdata = nullptr;
     }
-    void swap(const generic_object<value_type> &other)
+    void swap(const basic_object<value_type> &other)
     {
         T tmp;
         tmp = *(T *)pdata;
         *(T *)pdata = *((T *)other.pdata);
         *((T *)other.pdata) = tmp;
     }
-    generic_object &operator=(generic_object<value_type> other) {
+    basic_object &operator=(basic_object<value_type> other) {
         swap(other);
         return *this;
     }
 
-    /* explicitely accessing the value (it is the same as (value_type)generic_object) */
-    value_type value() { return *(value_type *)pdata; }
+    /* explicitely accessing the value (it is the same as (value_type)basic_object) */
+    value_type value() const { return *(value_type *)pdata; }
 
     operator value_type() const noexcept { return *(value_type *)pdata; }
     value_type operator()() const noexcept { return *(value_type *)pdata; }
 
     /* comparison */
-    bool operator==(const generic_object<T> other)
+    bool operator==(const basic_object<T> other) const
     { return *(T *)(pdata) == *(T *)(other.pdata); }
-private:
+
+    /* public access to internal pointer */
+    void *getpdata() const { return pdata; }
+    void nullpdata() { pdata = nullptr; }
+
+    private:
     void *pdata = nullptr;    // hidden data
 };
 
+struct generic_object
+{
+    /* empty constructor */
+    generic_object() : pdata(nullptr) {}
+    /* from <int> object */
+    generic_object(const basic_object<int> &OINT)
+    {
+        pdata = OINT.getpdata();
+    }
+    generic_object(basic_object<int> &&OINT)
+    {
+        pdata = OINT.getpdata();
+        OINT.nullpdata();    // nullify internal pointer of stolen object
+    }
+    /* from <char> object */
+    generic_object(const basic_object<char> &OCHAR)
+    {
+        pdata = OCHAR.getpdata();
+    }
+    generic_object(basic_object<char> &&OCHAR)
+    {
+        pdata = OCHAR.getpdata();
+        OCHAR.nullpdata();    // nullify internal pointer of stolen object
+    }
+protected:
+    void *pdata = nullptr;    // hidden data
+};
 }
 
-/* overloading std::swap for `generic_object` */
+/* overloading std::swap for `basic_object` */
 template<class T>
-void std::swap(sqlite3::generic_object<T> &O1, sqlite3::generic_object<T> &O2) {
+void std::swap(sqlite3::basic_object<T> &O1, sqlite3::basic_object<T> &O2) {
     O1.swap(O2);
 }
 
-typedef sqlite3::generic_object<int> SQLITE3_OINT;    // sqlite3 "object-int"
+typedef sqlite3::basic_object<int> SQLITE3_OINT;      // sqlite3 "object-int"
+typedef sqlite3::basic_object<char> SQLITE3_OCHAR;    // sqlite3 "object-char"
 
+using std::vector;
+using std::string;
+using std::cout;
+using std::endl;
 int main()
 {
-    std::cout << sizeof(sqlite3::generic_object<int>) << std::endl;
-    std::cout << sizeof(sqlite3::generic_object<double>) << std::endl;
-
     int x = 3;
     char c = 'A';
-    sqlite3::generic_object<int>Oint{x};
-    sqlite3::generic_object<char>Ochar{c};
-    sqlite3::generic_object<int>Oint2{4};
 
-    printf("x: %d, (int)Oint: %d, Oint(): %d, Oint.value(): %d\n", x, (int)Oint, Oint(), Oint.value());
+    vector<sqlite3::generic_object> v(3);
+    sqlite3::basic_object<int> OINT1{10};
+    sqlite3::basic_object<char> OCHAR1{'A'};
+    sqlite3::generic_object O1(OINT1);
+    v[0] = O1;
+    v[1] = (SQLITE3_OINT)3;
+
+    vector<sqlite3::generic_object> w{(SQLITE3_OINT)3, (SQLITE3_OCHAR)'A'};
+    exit(0);
+
+    sqlite3::basic_object<int>Oint{x};
+    sqlite3::basic_object<char>Ochar{c};
+    sqlite3::basic_object<int>Oint2{4};
+
+    printf("x: %d, (int)Oint: %d, Oint(): %d, Oint.value(): %d, static_cast<int>(Oint): %d\n", x, 
+        (int)Oint, Oint(), Oint.value(), static_cast<int>(Oint));
     printf("x: %x, (char)Ochar: %c, Ochar(): %c, Ochar.value(): %c\n", x, (char)Ochar, Ochar(), Ochar.value());
     std::cout << "Oint: " << Oint << std::endl;
     std::cout << "Ochar: " << Ochar << std::endl;
-    printf("sizeof(Oint): %d\n", sizeof(sqlite3::generic_object<int>::type));
+    printf("sizeof(Oint): %d\n", sizeof(sqlite3::basic_object<int>::type));
 
     std::cout << std::endl;
     printf("BEFORE: Oint: %d, Oint2: %d\n", Oint(), Oint2());
@@ -288,28 +334,5 @@ int main()
     scan_arguments(column_names_t{"colA", "colB", "colC"}.begin(), 20, 'b', "bar");
     std::cout << '\n';
     scan_arguments(column_names_t{"colA", "colB", "colC"}, 20, 'b', "bar");
-    exit(0);
-
-    A<int> A1{3};
-    decltype(A1) A2(4);
-    A<int>::value_type y = 3;
-    decltype(A1)::value_type z = 3;
-    std::cout << "A1: " << A1.value << std::endl;
-    std::cout << "A1: " << (int)A1 << std::endl;      // using cast operator [operator value_type()]
-    std::cout << "A1: " << A1() << std::endl;         // using access operator [operator()]
-    std::cout << "A1: " << A1 << std::endl;
-    std::cout << "A2: " << A2.value << std::endl;
-
-    B<0> B1{};
-    std::cout << "Value of B1.x: " << B1.x << std::endl;
-    B<2> B2{};
-    std::cout << sizeof B1 << ", " << sizeof B2 << std::endl;
-
-    exit(0); 
-    
-    // heterogeneous tuple construction
-    auto T = std::make_tuple(10, "Test", 3.14f, 1.5f);
-    test(T);
-
     exit(0);
 }

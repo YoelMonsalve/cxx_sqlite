@@ -1,5 +1,7 @@
 #include <type_traits>
 #include <iostream>
+#include <cstdio>
+#include <cassert>
 #include <string>
 #include <vector>
 #include <tuple>
@@ -156,8 +158,128 @@ void scan_arguments(std::vector<std::string> col_names, Col1Type col1, ColTypes.
  * ...
 */
 
+namespace sqlite3
+{
+
+/** 
+ * Template generic object
+ * 
+ * The purpose of this class is to server as a common wrapper for any of the
+ * native data types in sqlite3 (e.g., int, int64, text, etc).
+ * 
+ * For example, the declarations 
+ * 
+ * sqlite3::generic_object<int> O_SQLITE_INT;
+ * sqlite3::generic_object<int> O_SQLITE_DOUBLE;
+ * 
+ * allow to store an INTEGER, and a DOUBLE sqlite3 value, respectively. 
+ * 
+ * The underlying data is dynamically allocated in runtime, and then released 
+ * once the object is destroyed.
+ */
+template<class T>
+struct generic_object
+{
+    using value_type = T;          // my stored type: allows syntax generic_object<T>::value_type
+    using type = generic_object;   // my own type: allows syntax generic_object<T>::type (=T)
+
+    /* initializer constructor */
+    generic_object(const value_type &v)
+    { 
+        assert( (pdata = new value_type) != nullptr );
+        *(T *)pdata = v;
+    }
+    /* initializer constructor (with a rv-qualified value)*/
+    generic_object(value_type&& v)
+    { 
+        assert( (pdata = new value_type) != nullptr );
+        *(T *)pdata = v;    /* as v in rvalue, the compiler might take some advantage of it,
+                             * to execute this assignment */
+    }
+    /* destructor */
+    ~generic_object() { std::cout<<"Destructor called\n"; delete (value_type *)pdata; }
+
+    /* Rule of Three */
+    /* copy constructor */
+    generic_object(const generic_object<value_type> &o)
+    { 
+        assert( (pdata = new value_type) != nullptr );
+        *(T *)pdata = *(T *)o.pdata;
+    }
+    /* rvalue constructor */
+    generic_object(generic_object<value_type>&& o)
+    { 
+        pdata = o.pdata;
+        o.pdata = nullptr;
+    }
+    void swap(const generic_object<value_type> &other)
+    {
+        T tmp;
+        tmp = *(T *)pdata;
+        *(T *)pdata = *((T *)other.pdata);
+        *((T *)other.pdata) = tmp;
+    }
+    generic_object &operator=(generic_object<value_type> other) {
+        swap(other);
+        return *this;
+    }
+
+    /* explicitely accessing the value (it is the same as (value_type)generic_object) */
+    value_type value() { return *(value_type *)pdata; }
+
+    operator value_type() const noexcept { return *(value_type *)pdata; }
+    value_type operator()() const noexcept { return *(value_type *)pdata; }
+
+    /* comparison */
+    bool operator==(const generic_object<T> other)
+    { return *(T *)(pdata) == *(T *)(other.pdata); }
+private:
+    void *pdata = nullptr;    // hidden data
+};
+
+}
+
+/* overloading std::swap for `generic_object` */
+template<class T>
+void std::swap(sqlite3::generic_object<T> &O1, sqlite3::generic_object<T> &O2) {
+    O1.swap(O2);
+}
+
+typedef sqlite3::generic_object<int> SQLITE3_OINT;    // sqlite3 "object-int"
+
 int main()
 {
+    std::cout << sizeof(sqlite3::generic_object<int>) << std::endl;
+    std::cout << sizeof(sqlite3::generic_object<double>) << std::endl;
+
+    int x = 3;
+    char c = 'A';
+    sqlite3::generic_object<int>Oint{x};
+    sqlite3::generic_object<char>Ochar{c};
+    sqlite3::generic_object<int>Oint2{4};
+
+    printf("x: %d, (int)Oint: %d, Oint(): %d, Oint.value(): %d\n", x, (int)Oint, Oint(), Oint.value());
+    printf("x: %x, (char)Ochar: %c, Ochar(): %c, Ochar.value(): %c\n", x, (char)Ochar, Ochar(), Ochar.value());
+    std::cout << "Oint: " << Oint << std::endl;
+    std::cout << "Ochar: " << Ochar << std::endl;
+    printf("sizeof(Oint): %d\n", sizeof(sqlite3::generic_object<int>::type));
+
+    std::cout << std::endl;
+    printf("BEFORE: Oint: %d, Oint2: %d\n", Oint(), Oint2());
+    Oint = Oint2;    
+    printf("AFTER: Oint: %d, Oint2: %d\n", Oint(), Oint2());
+    Oint = 3+4;
+    printf("BEFORE: Oint: %d, Oint2: %d\n", Oint(), Oint2());
+    //Oint.swap(Oint2);
+    std::swap(Oint, Oint2);
+    printf("AFTER: Oint: %d, Oint2: %d\n", (int)Oint, (int)Oint2);
+
+    printf("Oint == 4 ? %c\n", Oint == SQLITE3_OINT(4) ? 'Y' : 'N');
+    printf("Oint == 5 ? %c\n", Oint() == 5 ? 'Y' : 'N');
+
+    exit(0);
+  
+    
     const char* column_names[] = {"colA", "colB", "colC"};
     scan_arguments(column_names, 10, 'a', "foo");
     std::vector<std::string> column_names2 = {"colA", "colB", "colC"};

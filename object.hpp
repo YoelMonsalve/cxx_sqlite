@@ -64,16 +64,16 @@ struct basic_object : generic_object
 
     /* initializer constructor */
     basic_object(const value_type &v)
-    { 
+    {
         assert( (pdata = new value_type) != nullptr );
         *(T *)pdata = v;
     }
     /* initializer constructor (with a rv-qualified value)*/
     basic_object(value_type&& v)
-    { 
+    {
         assert( (pdata = new value_type) != nullptr );
-        *(T *)pdata = v;    /* as v in rvalue, the compiler might take some advantage of it,
-                             * to execute this assignment */
+        *(T *)pdata = v;    /* as v is rv-qualified, the compiler might take
+                             * some advantage of that, at this assignment */
     }
     /* destructor */
     ~basic_object() { std::cout<<"Destructor called\n"; delete (value_type *)pdata; }
@@ -81,13 +81,13 @@ struct basic_object : generic_object
     /* Rule of Three */
     /* copy constructor */
     basic_object(const basic_object<value_type> &o)
-    { 
+    {
         assert( (pdata = new value_type) != nullptr );
         *(T *)pdata = *(T *)o.pdata;
     }
     /* rvalue constructor */
     basic_object(basic_object<value_type>&& o)
-    { 
+    {
         pdata = o.pdata;
         o.pdata = nullptr;
     }

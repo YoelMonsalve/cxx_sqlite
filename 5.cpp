@@ -137,41 +137,9 @@ void scan_arguments(std::vector<std::string> col_names, Col1Type col1, ColTypes.
     scan_arguments(col_names.size(), col_names.begin(), col1, cols...);
 }
 
-/** Variadic functions to read column names */
-void make_cols();    // forward declaration of base case
-// recursive case
-template <class T, class... Ts>
-void make_cols(T a, Ts... args)
-{
-    std::cout << "read: " << a << std::endl;
-    make_cols(args...);
-}
-// base case
-void make_cols()
-{
-    std::cout << "no more arguments" << std::endl;
-}
-/* TODO:
-
-make_cols() must have several signatures, for each possible argument type
- 
-- single argument: const char**
-- single argument: std::vector<const char*>
-- single argument: std::vector<std::string>
-- list-like arguments: col1, col2, ... (variadic definition)
-- (C++17) tuple: (col1, col2, ...)
-*/
-#define SQLITE3_INSERT_INTO(COLS, VALS) (make_cols COLS)
-
 // convenience shortcut macros
 #define OINT SQLITE3_OINT
 #define OCHAR SQLITE3_OCHAR
-#define INSERT_INTO SQLITE3_INSERT_INTO
-
-// macro to determine C++ standard version
-#if ((defined(_MSVC_LANG) && _MSVC_LANG >= 201703L) || __cplusplus >= 201703L)
-#  define __cpp_17_compliant
-#endif
 
 using std::vector;
 using std::string;
@@ -179,29 +147,12 @@ using std::cout;
 using std::endl;
 int main()
 {
-    /**
-     * __cplusplus 202101L c++23
-     * __cplusplus 202002L c++20
-     * __cplusplus 201703L c++17
-     * __cplusplus 201402L c++14
-     * __cplusplus 201103L c++11
-     * __cplusplus 199711L c++98
-     * else pre-standard c++
-    */
-    #ifdef __cpp_17_compliant
-        cout << "C++17 present\n"; 
-    #else
-        cout << "No C++17 present\n"; 
-    #endif
-
-    //make_cols('a', 1, 2, 1.5f);
     OINT I1{3+4};
     cout << "I1 (from rvalue): " << I1 << endl;
     int y = 7;
     OINT I2{y};
     cout << "I2 (from const value): " << I2 << endl;
     
-    INSERT_INTO (('a','b','c'), (1,2,3));
     exit(0);
     
     int x = 3;

@@ -1,22 +1,23 @@
-// class type-casting
+// dynamic_cast
 #include <iostream>
+#include <exception>
 using namespace std;
 
-class Dummy {
-    double i,j;
-};
-
-class Addition {
-    int x,y;
-  public:
-    Addition (int a, int b) { x=a; y=b; }
-    int result() { return x+y;}
-};
+class Base { virtual void dummy() {} };
+class Derived: public Base { int a; };
 
 int main () {
-  Dummy d;
-  Addition * padd;
-  padd = (Addition*) &d;
-  cout << padd->result();
+  try {
+    Base * pba = new Derived;
+    Base * pbb = new Base;
+    Derived * pd;
+
+    pd = dynamic_cast<Derived*>(pba);
+    if (pd==0) cout << "pba couldn't be converted to (Derived *).\n";
+
+    pd = dynamic_cast<Derived*>(pbb);
+    if (pd==0) cout << "pbb couldn't be converted to (Derived *).\n";
+
+  } catch (exception& e) {cout << "Exception: " << e.what();}
   return 0;
 }

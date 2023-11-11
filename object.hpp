@@ -1,5 +1,23 @@
+/**
+ * OBJECT.HPP
+ * Define a common c++ like wrapper for the native types present in sqlite3 
+ * (INTEGER, DOUBLE, etc).
+ * 
+ * @version 0.1.0 
+ * @author  Yoel Monsalve
+ * @date    2023-11-11
+ * 
+ * (C) Copyright VDI Technologies, LLC. 2019-2023.
+ * Tulsa - Oklahoma.
+ */
+
 #ifndef OBJECT_HPP_
 #define OBJECT_HPP_
+
+#include "std_version.h"
+#include "vector"
+#include "string"
+
 namespace sqlite3
 {
 
@@ -154,6 +172,11 @@ void std::swap(sqlite3::basic_object<T> &O1, sqlite3::basic_object<T> &O2) {
     O1.swap(O2);
 }
 
-typedef sqlite3::basic_object<int> SQLITE3_OINT;      // sqlite3 "object-int"
-typedef sqlite3::basic_object<char> SQLITE3_OCHAR;    // sqlite3 "object-char"
+typedef sqlite3::basic_object<int> SQLITE3_OINT;           // equivalent to sqlite3-like INTEGER
+typedef sqlite3::basic_object<char> SQLITE3_OCHAR;
+typedef sqlite3::basic_object<float> SQLITE3_OFLOAT;
+typedef sqlite3::basic_object<double> SQLITE3_ODOUBLE;     // equivalent to sqlite3-like DOUBLE
+typedef sqlite3::basic_object<char *> SQLITE3_OTEXT;       // equivalent to sqlite3-like TEXT
+typedef sqlite3::basic_object<const char *> SQLITE3_OCTEXT;
+typedef sqlite3::basic_object<std::vector<std::string>> SQLITE3_OSTRING;    // another equivalent to sqlite3-like TEXT
 #endif

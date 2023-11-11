@@ -18,7 +18,7 @@
 #include "vector"
 #include "string"
 
-namespace sqlite3
+namespace cxx_sqlite3
 {
 
 /** 
@@ -168,15 +168,15 @@ struct basic_object : generic_object
 
 /* overloading std::swap for `basic_object` */
 template<class T>
-void std::swap(sqlite3::basic_object<T> &O1, sqlite3::basic_object<T> &O2) {
+void std::swap(cxx_sqlite3::basic_object<T> &O1, cxx_sqlite3::basic_object<T> &O2) {
     O1.swap(O2);
 }
 
-typedef sqlite3::basic_object<int> SQLITE3_OINT;           // equivalent to sqlite3-like INTEGER
-typedef sqlite3::basic_object<char> SQLITE3_OCHAR;
-typedef sqlite3::basic_object<float> SQLITE3_OFLOAT;
-typedef sqlite3::basic_object<double> SQLITE3_ODOUBLE;     // equivalent to sqlite3-like DOUBLE
-typedef sqlite3::basic_object<char *> SQLITE3_OTEXT;       // equivalent to sqlite3-like TEXT
-typedef sqlite3::basic_object<const char *> SQLITE3_OCTEXT;
-typedef sqlite3::basic_object<std::vector<std::string>> SQLITE3_OSTRING;    // another equivalent to sqlite3-like TEXT
+typedef cxx_sqlite3::basic_object<int> SQLITE3_OINT;           // equivalent to sqlite3-like INTEGER
+typedef cxx_sqlite3::basic_object<char> SQLITE3_OCHAR;
+typedef cxx_sqlite3::basic_object<float> SQLITE3_OFLOAT;
+typedef cxx_sqlite3::basic_object<double> SQLITE3_ODOUBLE;     // equivalent to sqlite3-like DOUBLE
+typedef cxx_sqlite3::basic_object<char *> SQLITE3_OTEXT;       // equivalent to sqlite3-like TEXT
+typedef cxx_sqlite3::basic_object<const char *> SQLITE3_OCTEXT;
+typedef cxx_sqlite3::basic_object<std::vector<std::string>> SQLITE3_OSTRING;    // another equivalent to sqlite3-like TEXT
 #endif

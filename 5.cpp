@@ -158,14 +158,14 @@ int main()
     int x = 3;
     char c = 'A';
 
-    vector<sqlite3::generic_object> v(3);
-    sqlite3::basic_object<int> OINT1{10};
-    sqlite3::basic_object<char> OCHAR1{'A'};
-    sqlite3::generic_object O1(OINT1);
+    vector<cxx_sqlite3::generic_object> v(3);
+    cxx_sqlite3::basic_object<int> OINT1{10};
+    cxx_sqlite3::basic_object<char> OCHAR1{'A'};
+    cxx_sqlite3::generic_object O1(OINT1);
     v[0] = O1;
     v[1] = (OINT)3;
 
-    vector<sqlite3::generic_object> w{(SQLITE3_OINT)3, (SQLITE3_OCHAR)'A'};
+    vector<cxx_sqlite3::generic_object> w{(SQLITE3_OINT)3, (SQLITE3_OCHAR)'A'};
     cout << "OINT1: " << OINT1 << endl;
     cout << "(int) OINT1: " << (int) OINT1 << endl;
     cout << "int(OINT1): " << int(OINT1) << endl;
@@ -182,16 +182,16 @@ int main()
     cout << "OINT1 != OINT2 ? " << (OINT1 != OINT2 ? 'Y' : 'N') << endl;
     exit(0);
 
-    sqlite3::basic_object<int>Oint{x};
-    sqlite3::basic_object<char>Ochar{c};
-    sqlite3::basic_object<int>Oint2{4};
+    cxx_sqlite3::basic_object<int>Oint{x};
+    cxx_sqlite3::basic_object<char>Ochar{c};
+    cxx_sqlite3::basic_object<int>Oint2{4};
 
     printf("x: %d, (int)Oint: %d, Oint(): %d, Oint.value(): %d, static_cast<int>(Oint): %d\n", x, 
         (int)Oint, Oint(), Oint.value(), static_cast<int>(Oint));
     printf("x: %x, (char)Ochar: %c, Ochar(): %c, Ochar.value(): %c\n", x, (char)Ochar, Ochar(), Ochar.value());
     std::cout << "Oint: " << Oint << std::endl;
     std::cout << "Ochar: " << Ochar << std::endl;
-    printf("sizeof(Oint): %d\n", sizeof(sqlite3::basic_object<int>::type));
+    printf("sizeof(Oint): %d\n", sizeof(cxx_sqlite3::basic_object<int>::type));
 
     std::cout << std::endl;
     printf("BEFORE: Oint: %d, Oint2: %d\n", Oint(), Oint2());

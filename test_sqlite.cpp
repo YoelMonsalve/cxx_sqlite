@@ -59,15 +59,15 @@ void insert_row(sqlite3_stmt *stmt, row_t row)
 {
 	int rc;
 	if (!stmt) throw sqlite3_exception("NULL stmt");
-	if ( (rc = sqlite3_bind_text(stmt, 2, std::get<0>(row), -1, SQLITE_TRANSIENT)) != SQLITE_OK ) {
+	if ( (rc = sqlite3_bind_text(stmt, 1, std::get<0>(row), -1, SQLITE_TRANSIENT)) != SQLITE_OK ) {
 		throw sqlite3_exception(sqlite3_errstr(rc));
-	} else if ( (rc = sqlite3_bind_text(stmt, 3, std::get<1>(row), -1, SQLITE_TRANSIENT)) != SQLITE_OK ) {
+	} else if ( (rc = sqlite3_bind_text(stmt, 2, std::get<1>(row), -1, SQLITE_TRANSIENT)) != SQLITE_OK ) {
 		throw sqlite3_exception(sqlite3_errstr(rc));
-	} else if ( (rc = sqlite3_bind_int(stmt, 4, std::get<2>(row))) != SQLITE_OK ) {
+	} else if ( (rc = sqlite3_bind_int(stmt, 3, std::get<2>(row))) != SQLITE_OK ) {
 		throw sqlite3_exception(sqlite3_errstr(rc));
-	} else if ( (rc = sqlite3_bind_text(stmt, 5, std::get<3>(row), -1, SQLITE_TRANSIENT)) != SQLITE_OK ) {
+	} else if ( (rc = sqlite3_bind_text(stmt, 4, std::get<3>(row), -1, SQLITE_TRANSIENT)) != SQLITE_OK ) {
 		throw sqlite3_exception(sqlite3_errstr(rc));
-	} else if ( (rc = sqlite3_bind_double(stmt, 6, std::get<4>(row))) != SQLITE_OK ) {
+	} else if ( (rc = sqlite3_bind_double(stmt, 5, std::get<4>(row))) != SQLITE_OK ) {
 		throw sqlite3_exception(sqlite3_errstr(rc));
 	}
 
@@ -140,7 +140,7 @@ int main(int argc, char** argv)
 	int rc;
 	rc = sqlite3_prepare_v2(
 		conn,
-		"INSERT INTO PERSON VALUES(?,?);",
+		"INSERT INTO PERSON VALUES(:id,:price);",
 		-1,
 		&stmt,
 		NULL
@@ -160,23 +160,15 @@ int main(int argc, char** argv)
         int iCol;
         int val = 1;
         SQLITE3_OINT VAL_INT = val;
-        /*iCol = sqlite3_bind_parameter_index(stmt, ":id");
-        if ( (rc = sqlite3_bind_int(stmt, iCol, I1)) != SQLITE_OK ) {
-            throw sqlite3_exception(sqlite3_errstr(rc));
-        }*/
-        int ctype;
-        ctype = sqlite3_column_type(stmt, 0);
-        cout << "type: " << ctype << "]" << endl;
-        exit(0);
-        db.bind_one(stmt, "id", VAL_INT);
+        if ( (rc = db.bind_one(stmt, ":id", VAL_INT())) != SQLITE_OK) {
+			throw sqlite3_exception(sqlite3_errstr(rc));
+		}
         
-        /*iCol = sqlite3_bind_parameter_index(stmt, ":price");
-        if ( (rc = sqlite3_bind_double(stmt, iCol, std::get<1>(row))) != SQLITE_OK ) {
-            throw sqlite3_exception(sqlite3_errstr(rc));
-        }*/
-        double price = 10.5;
+        double price = 300.22;
         SQLITE3_ODOUBLE VAL_DBL{price};
-        db.bind_one(stmt, "price", VAL_DBL);
+        if ( (rc = db.bind_one(stmt, ":price", VAL_DBL())) != SQLITE_OK) {
+			throw sqlite3_exception(sqlite3_errstr(rc));
+		}
 
         if ( (rc = sqlite3_step(stmt)) != SQLITE_DONE ) {
             throw sqlite3_exception(sqlite3_errstr(rc));

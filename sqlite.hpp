@@ -107,11 +107,11 @@ namespace cxx_sqlite3
             return sqlite3_bind_int(pstmt, iCol, val); 
             // TODO: .. raise posible exceptions depending on whether sqlite3_bind_*() success or not.
         }
-        int bind_int_64(stmt *pstmt, col_index_t iCol, int val) { 
+        int bind_int_64(stmt *pstmt, col_index_t iCol, int64_t val) { 
             return sqlite3_bind_int64(pstmt, iCol, val); 
             // TODO: error handling
         }
-        int bind_double(stmt *pstmt, col_index_t iCol, int val) { 
+        int bind_double(stmt *pstmt, col_index_t iCol, double val) { 
             return sqlite3_bind_double(pstmt, iCol, val); 
         }
         int bind_text(stmt *pstmt, col_index_t iCol, const char *text, int len = -1, destructor_type hdl = bind_handler::static_handler) { 
@@ -120,11 +120,11 @@ namespace cxx_sqlite3
         int bind_text64(stmt *pstmt, col_index_t iCol, const char *text, uint64 len = -1, destructor_type hdl = bind_handler::static_handler, unsigned char encoding_ =  encoding::utf8) { 
             return sqlite3_bind_text64(pstmt, iCol, text, len, hdl, encoding_); 
         }
-        int bind_blob(stmt *pstmt, col_index_t iCol, const char *text, int len = -1, destructor_type hdl = bind_handler::static_handler) { 
-            return sqlite3_bind_blob(pstmt, iCol, text, len, hdl); 
+        int bind_blob(stmt *pstmt, col_index_t iCol, const void *blob, int len = -1, destructor_type hdl = bind_handler::static_handler) { 
+            return sqlite3_bind_blob(pstmt, iCol, blob, len, hdl); 
         }
-        int bind_blob64(stmt *pstmt, col_index_t iCol, const char *text, uint64 len = -1, destructor_type hdl = bind_handler::static_handler) { 
-            return sqlite3_bind_blob64(pstmt, iCol, text, len, hdl); 
+        int bind_blob64(stmt *pstmt, col_index_t iCol, const void *blob, uint64 len = -1, destructor_type hdl = bind_handler::static_handler) { 
+            return sqlite3_bind_blob64(pstmt, iCol, blob, len, hdl); 
         }
         int bind_null(stmt *pstmt, col_index_t iCol) { 
             return sqlite3_bind_null(pstmt, iCol); 
@@ -170,16 +170,13 @@ namespace cxx_sqlite3
         }
         #endif
 
-        int bind_one(stmt *pstmt, string col_name, generic_object VAL,
+        int bind_one__(stmt *pstmt, string col_name, generic_object VAL,
             destructor_type hdl = bind_handler::static_handler)
         {
             col_index_t iCol = bind_parameter_index(pstmt, string{":"} + col_name);
             if (iCol <= 0) { /* ... ? */ return -1;}
             std::cout << col_name << ": " << iCol << std::endl;
-            //exit(0);
             int ctype = sqlite3_column_type(pstmt, iCol);
-            std::cout << "MALDITA SEA: " << ctype << " : " << sqlite3_column_decltype(pstmt, 1) << std::endl;
-            exit(0);
             std::cout << data_type::type_int << ", " << data_type::type_double << std::endl;
             std::cout << SQLITE_TEXT << ", " << SQLITE_BLOB << ", " << SQLITE_NULL << std::endl;
             switch(ctype) {
@@ -196,6 +193,71 @@ namespace cxx_sqlite3
                 default:
                     return SQLITE_ERROR;    // change to a more appropriate SQLITE3 error code
             }
+        }
+
+        /** new code */
+        /* int */
+        int bind_one(stmt *pstmt, string col_id, int val)
+        {
+            col_index_t iCol = bind_parameter_index(pstmt, col_id);
+            if (iCol <= 0) { /* ... ? */ return SQLITE_ERROR;}
+            return bind_int(pstmt, iCol, val);
+        }
+        /* int64 */
+        int bind_one(stmt *pstmt, string col_id, int64_t val)
+        {
+            col_index_t iCol = bind_parameter_index(pstmt, col_id);
+            if (iCol <= 0) { /* ... ? */ return SQLITE_ERROR;}
+            return bind_int_64(pstmt, iCol, val);
+        }
+        /* double */
+        int bind_one(stmt *pstmt, string col_id, double val)
+        {
+            col_index_t iCol = bind_parameter_index(pstmt, col_id);
+            if (iCol <= 0) { /* ... ? */ return SQLITE_ERROR;}
+            return bind_double(pstmt, iCol, val);
+        }
+        /* const char * */
+        int bind_one(stmt *pstmt, string col_id, const char * val, destructor_type hdl = bind_handler::static_handler)
+        {
+            col_index_t iCol = bind_parameter_index(pstmt, col_id);
+            if (iCol <= 0) { /* ... ? */ return SQLITE_ERROR;}
+            return bind_text(pstmt, iCol, val, -1, hdl);
+        }
+        /* const char * (64) */
+        int bind_one(stmt *pstmt, string col_id, const char *val, destructor_type hdl = bind_handler::static_handler, encoding encoding_ = encoding::utf16)
+        {
+            col_index_t iCol = bind_parameter_index(pstmt, col_id);
+            if (iCol <= 0) { /* ... ? */ return SQLITE_ERROR;}
+            return bind_text64(pstmt, iCol, val, -1, hdl, encoding_);
+        }
+        /* const string */
+        int bind_one(stmt *pstmt, string col_id, const string &val, destructor_type hdl = bind_handler::static_handler)
+        {
+            col_index_t iCol = bind_parameter_index(pstmt, col_id);
+            if (iCol <= 0) { /* ... ? */ return SQLITE_ERROR;}
+            return bind_text(pstmt, iCol, val.c_str(), val.size(), hdl);
+        }
+        /* const string (64) */
+        int bind_one(stmt *pstmt, string col_id, const string &val, destructor_type hdl = bind_handler::static_handler, encoding encoding_ = encoding::utf16)
+        {
+            col_index_t iCol = bind_parameter_index(pstmt, col_id);
+            if (iCol <= 0) { /* ... ? */ return SQLITE_ERROR;}
+            return bind_text64(pstmt, iCol, val.c_str(), val.size(), hdl, encoding_);
+        }
+        /* blob(const void *) - Warning: very dangerous! */
+        int bind_one(stmt *pstmt, string col_id, const void * val, uint64 n, destructor_type hdl = bind_handler::static_handler)
+        {
+            col_index_t iCol = bind_parameter_index(pstmt, col_id);
+            if (iCol <= 0) { /* ... ? */ return SQLITE_ERROR;}
+            return bind_blob64(pstmt, iCol, val, n, hdl);
+        }
+        /* null value */
+        int bind_one(stmt *pstmt, string col_id)
+        {
+            col_index_t iCol = bind_parameter_index(pstmt, col_id);
+            if (iCol <= 0) { /* ... ? */ return SQLITE_ERROR;}
+            return bind_null(pstmt, iCol);
         }
     };
 

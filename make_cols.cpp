@@ -61,7 +61,7 @@ typedef tuple<std::string> col_names_tuple;
 
 using string = std::string;
 
-/* variadic function to assembly a list of column names, from arguments */
+/* variadic function to assembly a list of column names from arguments */
 // forward declaration of auxiliary function
 template <class T, class... Ts>
 void make_cols__(col_names_list &cols_list, T a, Ts... args);

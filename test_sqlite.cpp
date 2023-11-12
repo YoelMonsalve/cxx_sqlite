@@ -2,6 +2,8 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <map>
+#include <unordered_map>
 #include <tuple>
 #include <exception>
 #include <error.h>
@@ -89,6 +91,9 @@ using std::cout;
 using std::endl;
 using std::vector;
 using std::string;
+using std::pair;
+using std::map;
+using std::unordered_map;
 using std::tuple;
 
 int main(int argc, char** argv) 
@@ -117,8 +122,9 @@ int main(int argc, char** argv)
     
     // Run a query
 	std::string sql = "CREATE TABLE PERSON("
-					"id       INTEGER PRIMARY KEY NOT NULL, "
-					"price    REAL NOT NULL);"; 
+					"id       INTEGER PRIMARY KEY NOT NULL,"
+					"name     TEXT,"
+					"salary   REAL NOT NULL);"; 
 	
 	rcode = sqlite3_exec(conn, sql.c_str(), NULL, 0, &messageError); 
 
@@ -140,7 +146,7 @@ int main(int argc, char** argv)
 	int rc;
 	rc = sqlite3_prepare_v2(
 		conn,
-		"INSERT INTO PERSON VALUES(:id,:price);",
+		"INSERT INTO PERSON VALUES(:id,:name,:salary);",
 		-1,
 		&stmt,
 		NULL
@@ -155,20 +161,27 @@ int main(int argc, char** argv)
 	/** insert record, and flush statement */
    	try {
 		int rc;
-        if (!stmt) throw sqlite3_exception("NULL stmt");
+        if (!stmt) throw sqlite3_exception("Error in preparing stmt");
         
         int iCol;
         int val = 1;
         SQLITE3_OINT VAL_INT = val;
-        if ( (rc = db.bind_one(stmt, ":id", VAL_INT())) != SQLITE_OK) {
+        
+		/*if ( (rc = db.bind_one(stmt, pair<string, cxx_sqlite3::basic_object<int>>{":id", VAL_INT()})) != SQLITE_OK) {
+			throw sqlite3_exception(sqlite3_errstr(rc));
+		}
+
+		if ( (rc = db.bind_one(stmt, ":name", "John")) != SQLITE_OK) {
 			throw sqlite3_exception(sqlite3_errstr(rc));
 		}
         
-        double price = 300.22;
-        SQLITE3_ODOUBLE VAL_DBL{price};
-        if ( (rc = db.bind_one(stmt, ":price", VAL_DBL())) != SQLITE_OK) {
+        if ( (rc = db.bind_one(stmt, ":salary", VAL_DBL())) != SQLITE_OK) {
 			throw sqlite3_exception(sqlite3_errstr(rc));
 		}
+        */
+
+		double salary = 300.22;
+		db.bind(stmt, {":id", ":name", ":salary"}, VAL_INT(), "John", salary);
 
         if ( (rc = sqlite3_step(stmt)) != SQLITE_DONE ) {
             throw sqlite3_exception(sqlite3_errstr(rc));

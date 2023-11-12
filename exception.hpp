@@ -22,6 +22,23 @@
 
 namespace cxx_sqlite3
 {
+    /** error codes */
+    enum error : int {
+        ok         = SQLITE_OK        ,
+        row        = SQLITE_ROW       ,
+        done       = SQLITE_DONE      ,
+        error      = SQLITE_ERROR     ,
+        internal   = SQLITE_INTERNAL  ,
+        perm       = SQLITE_PERM      ,
+        abort      = SQLITE_ABORT     ,
+        busy       = SQLITE_BUSY      ,
+        locked     = SQLITE_LOCKED    ,
+        // ...
+    };
+}
+
+namespace cxx_sqlite3
+{
     /** Custom sqlite exception */
     class exception: public std::runtime_error
     {
@@ -31,7 +48,6 @@ namespace cxx_sqlite3
 
     // TODO: more specializations ...
 }
-
 
 typedef cxx_sqlite3::exception sqlite3_exception;
 

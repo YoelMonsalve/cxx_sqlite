@@ -15,8 +15,10 @@
 #define OBJECT_HPP_
 
 #include "std_version.h"
-#include "vector"
-#include "string"
+#include <iostream>
+#include <cassert>
+#include <vector>
+#include <string>
 
 namespace cxx_sqlite3
 {
@@ -39,11 +41,14 @@ namespace cxx_sqlite3
  */
 struct generic_object    // base class
 {
+    template<class T>
+    friend class basic_object;
+    
     /* empty constructor */
     generic_object() : pdata(nullptr) {}
     /* from a pointer (shared pointer) */
     generic_object(void * pdata_) : pdata(pdata_) {}
-
+    
     #if 0
     /* from <int> object */
     generic_object(const basic_object<int> &OINT)
@@ -75,7 +80,7 @@ protected:
 
 /* specialized (T-typed) class from (non-typed) generic object */
 template<class T>
-struct basic_object : generic_object
+struct basic_object : public generic_object
 {
     using value_type = T;          // my stored type: allows syntax basic_object<T>::value_type
     using type = basic_object;     // my own type: allows syntax basic_object<T>::type (=T)
@@ -96,6 +101,18 @@ struct basic_object : generic_object
     /* destructor */
     ~basic_object() { std::cout<<"Destructor called\n"; delete (value_type *)pdata; }
 
+    /* building a basic_object from a generic_object */
+    basic_object(const generic_object &o)
+    {
+        assert( (pdata = new value_type) != nullptr );
+        *(T *)pdata = *(T *)o.pdata;
+    }
+    basic_object(generic_object &&o)
+    {
+        pdata = o.pdata;
+        o.pdata = nullptr;
+    }
+
     /* Rule of Three */
     /* copy constructor */
     basic_object(const basic_object<value_type> &o)
@@ -104,7 +121,7 @@ struct basic_object : generic_object
         *(T *)pdata = *(T *)o.pdata;
     }
     /* rvalue constructor */
-    basic_object(basic_object<value_type>&& o)
+    basic_object(basic_object<value_type> &&o)
     {
         pdata = o.pdata;
         o.pdata = nullptr;
@@ -117,7 +134,7 @@ struct basic_object : generic_object
         *(T *)pdata = *((T *)other.pdata);
         *((T *)other.pdata) = tmp;
     }
-    /* assignment from basic_object */
+    /* assignment */
     basic_object &operator=(basic_object<value_type> other) {
         swap(other);
         return *this;
@@ -178,5 +195,5 @@ typedef cxx_sqlite3::basic_object<float> SQLITE3_OFLOAT;
 typedef cxx_sqlite3::basic_object<double> SQLITE3_ODOUBLE;     // equivalent to sqlite3-like DOUBLE
 typedef cxx_sqlite3::basic_object<char *> SQLITE3_OTEXT;       // equivalent to sqlite3-like TEXT
 typedef cxx_sqlite3::basic_object<const char *> SQLITE3_OCTEXT;
-typedef cxx_sqlite3::basic_object<std::vector<std::string>> SQLITE3_OSTRING;    // another equivalent to sqlite3-like TEXT
+typedef cxx_sqlite3::basic_object<std::string> SQLITE3_OSTRING;    // another equivalent to sqlite3-like TEXT
 #endif

@@ -18,20 +18,29 @@
 #define SQLITE_HPP_
 
 #include "std_version.h"
+#include <string>
+#include <vector>
+#include <tuple>
 #include <sqlite3.h>
+#include "object.hpp"
+#include "exception.hpp"
 
 //SQLITE_INTEGER, SQLITE_FLOAT, SQLITE_TEXT, SQLITE_BLOB, or SQLITE_NULL.
 
 namespace cxx_sqlite3
 {
+    using std::string;
+    using std::vector;
+    using std::tuple;
+    
     /** symbolic constants for sqlite3 native data types */
-    enum class data_type {
-        int_    = SQLITE_INTEGER,
-        float_  = SQLITE_FLOAT,
-        double_ = SQLITE_FLOAT,
-        text    = SQLITE_TEXT,
-        blob    = SQLITE_BLOB,
-        null_   = SQLITE_NULL,
+    enum data_type : int {
+        type_int    = SQLITE_INTEGER,
+        type_float  = SQLITE_FLOAT,
+        type_double = SQLITE_FLOAT,
+        type_text   = SQLITE_TEXT,
+        type_blob   = SQLITE_BLOB,
+        type_null   = SQLITE_NULL,
     };
 
     /** importing sqlite3 native objects and types to this space */
@@ -41,6 +50,7 @@ namespace cxx_sqlite3
     using uint64  = sqlite3_uint64;
     //
     using destructor_type = sqlite3_destructor_type;
+    using col_index_t     = int;
 
     /** encoding methods */
     enum encoding : unsigned char {
@@ -65,6 +75,7 @@ namespace cxx_sqlite3
     class db
     {
         // ... private methods here 
+
         public:
 
         /** constructors */
@@ -92,33 +103,52 @@ namespace cxx_sqlite3
         int sqlite3_bind_zeroblob64(sqlite3_stmt*, int, sqlite3_uint64);
         */
 
-        int bind_int(stmt *pstmt, int iCol, int val) { 
+        int bind_int(stmt *pstmt, col_index_t iCol, int val) { 
             return sqlite3_bind_int(pstmt, iCol, val); 
             // TODO: .. raise posible exceptions depending on whether sqlite3_bind_*() success or not.
         }
-        int bind_int_64(stmt *pstmt, int iCol, int val) { 
+        int bind_int_64(stmt *pstmt, col_index_t iCol, int val) { 
             return sqlite3_bind_int64(pstmt, iCol, val); 
             // TODO: error handling
         }
-        int bind_double(stmt *pstmt, int iCol, int val) { 
+        int bind_double(stmt *pstmt, col_index_t iCol, int val) { 
             return sqlite3_bind_double(pstmt, iCol, val); 
         }
-        int bind_text(stmt *pstmt, int iCol, const char *text, int len = -1, destructor_type hdl = bind_handler::static_handler) { 
+        int bind_text(stmt *pstmt, col_index_t iCol, const char *text, int len = -1, destructor_type hdl = bind_handler::static_handler) { 
             return sqlite3_bind_text(pstmt, iCol, text, len, hdl); 
         }
-        int bind_text64(stmt *pstmt, int iCol, const char *text, uint64 len = -1, destructor_type hdl = bind_handler::static_handler, unsigned char encoding_ =  encoding::utf8) { 
+        int bind_text64(stmt *pstmt, col_index_t iCol, const char *text, uint64 len = -1, destructor_type hdl = bind_handler::static_handler, unsigned char encoding_ =  encoding::utf8) { 
             return sqlite3_bind_text64(pstmt, iCol, text, len, hdl, encoding_); 
         }
-        int bind_blob(stmt *pstmt, int iCol, const char *text, int len = -1, destructor_type hdl = bind_handler::static_handler) { 
+        int bind_blob(stmt *pstmt, col_index_t iCol, const char *text, int len = -1, destructor_type hdl = bind_handler::static_handler) { 
             return sqlite3_bind_blob(pstmt, iCol, text, len, hdl); 
         }
-        int bind_blob64(stmt *pstmt, int iCol, const char *text, uint64 len = -1, destructor_type hdl = bind_handler::static_handler) { 
+        int bind_blob64(stmt *pstmt, col_index_t iCol, const char *text, uint64 len = -1, destructor_type hdl = bind_handler::static_handler) { 
             return sqlite3_bind_blob64(pstmt, iCol, text, len, hdl); 
         }
-        int bind_null(stmt *pstmt, int iCol) { 
+        int bind_null(stmt *pstmt, col_index_t iCol) { 
             return sqlite3_bind_null(pstmt, iCol); 
         }
 
+        int bind_parameter_index(stmt *pstmt, const char *zName) {
+            return sqlite3_bind_parameter_index(pstmt, zName);
+        }
+        int bind_parameter_index(stmt *pstmt, const string zName) {
+            return sqlite3_bind_parameter_index(pstmt, zName.c_str());
+        }
+
+        /** return values */
+        const char *column_name(stmt *pstmt, col_index_t iCol) {
+            return sqlite3_column_name(pstmt, iCol);
+        }
+        int colum_bytes(stmt *pstmt, col_index_t iCol) {
+            return sqlite3_column_bytes(pstmt, iCol);
+        }
+        int colum_type(stmt *pstmt, col_index_t iCol) {
+            return sqlite3_column_type(pstmt, iCol);
+        }
+
+        # if 0
         enum class bind_type {
             bind_int = 0,
             bind_int64,
@@ -130,9 +160,43 @@ namespace cxx_sqlite3
             bind_blob64,
             bind_null,
         };
-        typedef int (*generic_binder)(bind_type, void **);
+        // this allows to implement a common wrapper for all type of bind_* methods
+        typedef int (*generic_binder)(void **);
 
-        
+        /* Provide arguments through an array.
+         * example: bind_int__({&pstmt) */
+        int bind_int__(void **args) {
+            stmt* pstm = (stmt *)
+        }
+        #endif
+
+        int bind_one(stmt *pstmt, string col_name, generic_object VAL,
+            destructor_type hdl = bind_handler::static_handler)
+        {
+            col_index_t iCol = bind_parameter_index(pstmt, string{":"} + col_name);
+            if (iCol <= 0) { /* ... ? */ return -1;}
+            std::cout << col_name << ": " << iCol << std::endl;
+            //exit(0);
+            int ctype = sqlite3_column_type(pstmt, iCol);
+            std::cout << "MALDITA SEA: " << ctype << " : " << sqlite3_column_decltype(pstmt, 1) << std::endl;
+            exit(0);
+            std::cout << data_type::type_int << ", " << data_type::type_double << std::endl;
+            std::cout << SQLITE_TEXT << ", " << SQLITE_BLOB << ", " << SQLITE_NULL << std::endl;
+            switch(ctype) {
+                case data_type::type_int:
+                    return bind_int_64(pstmt, iCol, ((SQLITE3_OINT)VAL)());
+                case data_type::type_double:
+                    return bind_double(pstmt, iCol, ((SQLITE3_ODOUBLE)VAL)());
+                case data_type::type_null:
+                    return bind_null(pstmt, iCol);
+                case data_type::type_text:
+                    return bind_text(pstmt, iCol, ((SQLITE3_OSTRING)VAL)().c_str(), -1, hdl);
+                case data_type::type_blob:
+                    return bind_blob(pstmt, iCol, ((SQLITE3_OSTRING)VAL)().c_str(), -1, hdl);
+                default:
+                    return SQLITE_ERROR;    // change to a more appropriate SQLITE3 error code
+            }
+        }
     };
 
     /** built-in sqlite3 destructors */

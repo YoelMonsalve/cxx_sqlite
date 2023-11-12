@@ -153,10 +153,18 @@ int main()
     OINT I2{y};
     cout << "I2 (from const value): " << I2 << endl;
     
-    exit(0);
-    
     int x = 3;
     char c = 'A';
+    cxx_sqlite3::generic_object OBJ{&x};
+    I1 = OBJ;
+    cout << "I1 (from generic_object): " << I1 << endl;
+    OINT I3{OBJ};
+    cout << "I3 (from generic_object): " << I3 << endl;
+    OINT I4 = (OINT)OBJ;
+    cout << "I4 (from generic_object): " << I4 << endl;
+
+    exit(0);
+    
 
     vector<cxx_sqlite3::generic_object> v(3);
     cxx_sqlite3::basic_object<int> OINT1{10};

@@ -101,6 +101,21 @@ int main(int argc, char** argv)
    	/*throw MyException("This is a custom exception");
 	//throw std::runtime_error("this is an exception");
 	exit(0);*/
+
+	vector<SQLITE3_OINT> vals1{1, 2, 3};
+	//vector<SQLITE3_OGEN> vals2{1, 2, 3};
+	SQLITE3_OINT O1{1};
+	SQLITE3_OGEN O2 = O1;
+	cout << "O1= " << O1 << endl;
+	cout << "O1 + 1= " << int(O1 + 1) << endl;
+	++O1;
+	O1++;
+	cout << "O2= " << (SQLITE3_OINT)O2 << endl;
+	O1 += 10;
+	cout << "O2= " << SQLITE3_OINT(O2) << endl;
+	O1 -= 20;
+	cout << "O2= " << SQLITE3_OINT{O2} << endl;
+	exit(0);
 	
     sqlite3* conn; 
 	int rcode = 0; 
@@ -181,7 +196,7 @@ int main(int argc, char** argv)
         */
 
 		double salary = 300.22;
-		db.bind(stmt, {":id", ":name", ":salary"}, VAL_INT(), "John", salary);
+		db.bind(stmt, {":id", ":name", ":salary"}, VAL_INT(), SQLITE3_OSTRING{"John"}, salary);
 
         if ( (rc = sqlite3_step(stmt)) != SQLITE_DONE ) {
             throw sqlite3_exception(sqlite3_errstr(rc));

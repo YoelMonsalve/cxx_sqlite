@@ -243,10 +243,11 @@ namespace cxx_sqlite3
         /**
          * This variadic method allows to pass several values at once.
         */
-        #if 1
         int bind_variadic__(stmt *pstmt, vector<string>::size_type i, vector<string> col_ids)
-        { return 0; /*nothing*/ }
-        #endif
+        { 
+            // we reached the end of processing
+            return error::ok; 
+        }
         // ________________ recursive case
         template <typename T, typename... Ts>
         int bind_variadic__(stmt *pstmt, vector<string>::size_type i, vector<string> col_ids, T val, Ts... vals)
@@ -262,6 +263,7 @@ namespace cxx_sqlite3
             else
                 return rc;
         }
+        // main method
         template <typename T, typename... Ts>
         int bind(stmt *pstmt, vector<string> col_ids, T val, Ts... vals)
         {

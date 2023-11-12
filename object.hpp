@@ -78,6 +78,9 @@ protected:
 #define BASIC_OBJECT_OVERLOAD_BUILTIN_OPERATOR(op,rtype) rtype operator op(const value_type &v) const { return *(T *)(pdata) op v; }
 #define BASIC_OBJECT_OVERLOAD_OPERATOR(op, rtype) rtype operator op(const basic_object<value_type> &other) const { return *(T *)(pdata) op *(T *)(other.pdata); }
 
+// this defines a quick way to access the actual value stored
+#define data_value__ (*(value_type *)pdata)
+
 /* specialized (T-typed) class from (non-typed) generic object */
 template<class T>
 struct basic_object : public generic_object
@@ -141,8 +144,8 @@ struct basic_object : public generic_object
     }
 
     /* explicitely accessing the value (it is the same as (value_type)basic_object) */
-    value_type value() const { return *(value_type *)pdata; }
-    value_type operator()() const noexcept { return *(value_type *)pdata; }
+    value_type value() const noexcept { return data_value__; }
+    value_type operator()() const noexcept { return data_value__; }
 
     /* static cast to value_type */
     operator value_type() const noexcept { return *(value_type *)pdata; }
@@ -169,6 +172,23 @@ struct basic_object : public generic_object
     BASIC_OBJECT_OVERLOAD_BUILTIN_OPERATOR(<= , bool)
     // TODO: more operators ...
 
+    /* increment and decrement operators (supposed they are actually defined 
+     * for the underlying value_type) */
+    void operator++() { ++data_value__; }
+    void operator++(int) { data_value__++; }
+    void operator--() { --data_value__; }
+    void operator--(int) { data_value__--; }
+    basic_object<value_type> &operator+=(value_type inc) 
+    {
+        data_value__ += inc;
+        return *this;
+    }
+    basic_object<value_type> &operator-=(value_type dec) 
+    {
+        data_value__ -= dec;
+        return *this;
+    }
+
     /* downcast to generic object (without type) .... not needed */
     //operator generic_object() const noexcept { return generic_object(pdata); }
 
@@ -181,6 +201,7 @@ struct basic_object : public generic_object
 };
 #undef BASIC_OBJECT_OVERLOAD_BUILTIN_OPERATOR
 #undef BASIC_OBJECT_OVERLOAD_OPERATOR
+#undef data_value__
 }
 
 /* overloading std::swap for `basic_object` */
@@ -196,4 +217,5 @@ typedef cxx_sqlite3::basic_object<double> SQLITE3_ODOUBLE;     // equivalent to 
 typedef cxx_sqlite3::basic_object<char *> SQLITE3_OTEXT;       // equivalent to sqlite3-like TEXT
 typedef cxx_sqlite3::basic_object<const char *> SQLITE3_OCTEXT;
 typedef cxx_sqlite3::basic_object<std::string> SQLITE3_OSTRING;    // another equivalent to sqlite3-like TEXT
+typedef cxx_sqlite3::generic_object SQLITE3_OGEN;
 #endif

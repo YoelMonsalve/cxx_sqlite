@@ -174,10 +174,24 @@ struct basic_object : public generic_object
 
     /* increment and decrement operators (supposed they are actually defined 
      * for the underlying value_type) */
-    void operator++() { ++data_value__; }
-    void operator++(int) { data_value__++; }
-    void operator--() { --data_value__; }
-    void operator--(int) { data_value__--; }
+    basic_object<value_type> &operator++() { 
+        ++data_value__; 
+        return *this; 
+    }
+    basic_object<value_type> operator++(int) { 
+        basic_object<value_type> former(*this);
+        operator++(); 
+        return former;
+    }
+    basic_object<value_type> &operator--() { 
+        --data_value__; 
+        return *this; 
+    }
+    basic_object<value_type> operator--(int) { 
+        basic_object<value_type> former(*this);
+        operator--(); 
+        return former;
+    }
     basic_object<value_type> &operator+=(value_type inc) 
     {
         data_value__ += inc;

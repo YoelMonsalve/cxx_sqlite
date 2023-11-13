@@ -138,15 +138,50 @@ void scan_arguments(std::vector<std::string> col_names, Col1Type col1, ColTypes.
 }
 
 // convenience shortcut macros
+#define OGEN SQLITE3_OGEN
 #define OINT SQLITE3_OINT
 #define OCHAR SQLITE3_OCHAR
+
+// short alias for sqlite-namespace
+#define sqlite cxx_sqlite3
 
 using std::vector;
 using std::string;
 using std::cout;
 using std::endl;
+
+void read_int(OGEN I)
+{
+    cout << "read_float: " << (SQLITE3_OFLOAT)I << endl;
+    cout << "read_int: " << (SQLITE3_OINT)I << endl;
+}
+
+template<class T>
+void fn() { cout << "fn()" << endl; }
+
+// bad
+//void fn<int>(int x) { }
+
+template<class T>
+struct ftor;
+
+template <>
+struct ftor<int> { 
+    void operator()(int x) { cout << "ftor<int>: x = " << x << endl; }; 
+};
+template <>
+struct ftor<float> { 
+    void operator()(float x) { cout << "ftor<float>: x = " << x << endl; }; 
+};
+
 int main()
 {
+    ftor<int> f1;
+    f1(3);
+    ftor<float>()(3.5f);
+    ftor<float>{}(-3.5f);
+    exit(0);
+    
     OINT I1{3+4};
     cout << "I1 (from rvalue): " << I1 << endl;
     int y = 7;
@@ -155,7 +190,7 @@ int main()
     
     int x = 3;
     char c = 'A';
-    cxx_sqlite3::generic_object OBJ{&x};
+    sqlite::generic_object OBJ{&x};
     I1 = OBJ;
     cout << "I1 (from generic_object): " << I1 << endl;
     OINT I3{OBJ};
@@ -163,6 +198,11 @@ int main()
     OINT I4 = (OINT)OBJ;
     cout << "I4 (from generic_object): " << I4 << endl;
 
+    /** 
+     * Is it ever possible to upcast a basic_object to generic_object,
+     * and still being able to recovery the original basic_object
+    */
+    read_int(I1);
     exit(0);
     
 

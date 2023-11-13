@@ -49,6 +49,18 @@ int main()
 
   // variadic function, version 1
   f(1, 2, 3);
+  cout << endl;
+
+  int x = 2, y = 3;
+  int &xp = x, &yp=y;
+
+  vector<int> w{xp, y};
+  for (auto &a: w) { cout << ": " << a; }
+  cout << endl;
+  x = 4;
+  y = 5;
+  for (auto &a: w) { cout << ": " << a; }
+  cout << endl << endl;
 
   return 0;
 }

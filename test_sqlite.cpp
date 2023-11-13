@@ -96,12 +96,17 @@ using std::map;
 using std::unordered_map;
 using std::tuple;
 
+// convenience macros and typedef's
+#define sqlite cxx_sqlite3
+using error_code_t = sqlite::error_code_t;
+
 int main(int argc, char** argv) 
 { 
    	/*throw MyException("This is a custom exception");
 	//throw std::runtime_error("this is an exception");
 	exit(0);*/
 
+	/*
 	vector<SQLITE3_OINT> vals1{1, 2, 3};
 	//vector<SQLITE3_OGEN> vals2{1, 2, 3};
 	SQLITE3_OINT O1{1};
@@ -116,7 +121,8 @@ int main(int argc, char** argv)
 	O1 -= 20;
 	cout << "O2= " << SQLITE3_OINT{O2} << endl;
 	exit(0);
-	
+	*/
+
     sqlite3* conn; 
 	int rcode = 0; 
 	rcode = sqlite3_open_v2(
@@ -129,12 +135,13 @@ int main(int argc, char** argv)
 	char* messageError; 
 
 	if (rcode != SQLITE_OK) { 
-		std::cerr << "Error open DB " << sqlite3_errmsg(conn) << std::endl; 
+		std::cerr << "Error open DB " << messageError << std::endl; 
 		return -1; 
 	} 
 	else
 		std::cout << "Open Database Successfully!" << std::endl; 
-    
+    sqlite3_free(messageError);
+
     // Run a query
 	std::string sql = "CREATE TABLE PERSON("
 					"id       INTEGER PRIMARY KEY NOT NULL,"
@@ -157,8 +164,12 @@ int main(int argc, char** argv)
 
 	rcode = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
 
-	sqlite3_stmt *stmt;
-	int rc;
+
+	/*****************************************************
+	 *
+	NOTE:  All this boilerplate code:
+	
+	```
 	rc = sqlite3_prepare_v2(
 		conn,
 		"INSERT INTO PERSON VALUES(:id,:name,:salary);",
@@ -166,11 +177,38 @@ int main(int argc, char** argv)
 		&stmt,
 		NULL
 	);
-	if (rc != SQLITE_OK) {
+	if (rc != sqlite::error_code::ok) {
 		std::cerr << "sqlite3_prepare_v2: " << sqlite3_errmsg(conn) << std::endl; 
-		stmt = nullptr;
+		throw sqlite::exception_prepare(sqlite3_errmsg(conn));
 	}
+	```
 
+	is elegantly replaced by a couple of lines:
+	
+	```
+	sqlite::statement stmt(conn);
+	rc = stmt2.prepare("INSERT INTO PERSON VALUES(:id,:name,:salary);");
+	```
+
+	or even more concise:
+
+	```
+	rc = sqlite::statement(conn).prepare(
+		"INSERT INTO PERSON VALUES(:id,:name,:salary);"
+	);
+	```
+
+	Indeed, if the prepare fails, an exception will be thrown (which you can
+	capture for right treatment), otherwise the usual C-like return code will be
+	retrieved.
+	*/
+
+	sqlite3_stmt *stmt;
+	error_code_t rc;
+	sqlite::statement stmt2(conn);
+	rc = stmt2.prepare("INSERT INTO PERSON VALUES(:id,:name,:salary);");
+	
+	exit(0);
     cxx_sqlite3::db db{};
 
 	/** insert record, and flush statement */

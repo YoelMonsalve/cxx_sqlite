@@ -20,6 +20,7 @@
 #include <exception>
 #include <stdexcept>
 #include <string>
+#include <sqlite3.h>
 
 namespace cxx_sqlite3
 {
@@ -59,14 +60,26 @@ namespace cxx_sqlite3
     /** Custom sqlite exception */
     struct exception: public std::runtime_error
     {
-        exception(const char *msg) : runtime_error(msg) {}
+        exception(const char *msg) : std::runtime_error(msg) {}
     };
 
     /** exception thrown on prepare_statement_v2() */
     struct exception_prepare: public exception
     {
         exception_prepare(const char *msg) 
-            : exception((std::string{"prepare_statement: "} + msg).c_str()) {}
+            : exception((std::string{"error: prepare_statement: "} + msg).c_str()) {}
+    };
+    /** exception thrown on bind()_*() familiy functions */
+    struct exception_bind: public exception
+    {
+        exception_bind(const char *msg) 
+            : exception((std::string{"error: sqlite3_bind: "} + msg).c_str()) {}
+    };
+    /** exception thrown on column_*() family functions */
+    struct exception_column: public exception
+    {
+        exception_column(const char *msg) 
+            : exception((std::string{"error: sqlite3_column: "} + msg).c_str()) {}
     };
     // TODO: more specializations ...
 

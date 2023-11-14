@@ -203,48 +203,36 @@ int main(int argc, char** argv)
 	retrieved.
 	*/
 
+	cxx_sqlite3::db db{};
+	
 	sqlite3_stmt *stmt;
 	error_code_t rc;
 	sqlite::statement stmt2(conn);
-	rc = stmt2.prepare("INSERT INTO PERSON VALUES(:id,:name,:salary);");
-	
-	exit(0);
-    cxx_sqlite3::db db{};
+	stmt2.prepare("INSERT INTO PERSON VALUES(:id,:name,:salary);");
 
 	/** insert record, and flush statement */
-   	try {
-		int rc;
-        if (!stmt) throw sqlite3_exception("Error in preparing stmt");
-        
-        int iCol;
-        int val = 1;
-        SQLITE3_OINT VAL_INT = val;
-        
-		/*if ( (rc = db.bind_one(stmt, pair<string, cxx_sqlite3::basic_object<int>>{":id", VAL_INT()})) != SQLITE_OK) {
-			throw sqlite3_exception(sqlite3_errstr(rc));
-		}
-
-		if ( (rc = db.bind_one(stmt, ":name", "John")) != SQLITE_OK) {
-			throw sqlite3_exception(sqlite3_errstr(rc));
-		}
-        
-        if ( (rc = db.bind_one(stmt, ":salary", VAL_DBL())) != SQLITE_OK) {
-			throw sqlite3_exception(sqlite3_errstr(rc));
-		}
-        */
-
-		double salary = 300.22;
-		db.bind(stmt, {":id", ":name", ":salary"}, VAL_INT(), SQLITE3_OSTRING{"John"}, salary);
-
-        if ( (rc = sqlite3_step(stmt)) != SQLITE_DONE ) {
-            throw sqlite3_exception(sqlite3_errstr(rc));
-        }
+	int iCol;
+	int val = 1;
+	SQLITE3_OINT VAL_INT = val;
+	
+	/*if ( (rc = db.bind_one(stmt, pair<string, cxx_sqlite3::basic_object<int>>{":id", VAL_INT()})) != SQLITE_OK) {
+		throw sqlite3_exception(sqlite3_errstr(rc));
 	}
-	catch (sqlite3_exception &e) {
-		std::cerr << "sqlite3: " << e.what() << ": " << sqlite3_errmsg(conn) << std::endl;
+
+	if ( (rc = db.bind_one(stmt, ":name", "John")) != SQLITE_OK) {
+		throw sqlite3_exception(sqlite3_errstr(rc));
 	}
-	catch (std::exception &e) {
-		std::cerr << "exception: " << e.what() << ": " << sqlite3_errmsg(conn) << std::endl;
+	
+	if ( (rc = db.bind_one(stmt, ":salary", VAL_DBL())) != SQLITE_OK) {
+		throw sqlite3_exception(sqlite3_errstr(rc));
+	}
+	*/
+	double salary = 300.22;
+	//db.bind(stmt, {":id", ":name", ":salary"}, VAL_INT(), SQLITE3_OSTRING{"John"}, salary);
+	stmt2.bind({":id", ":name", ":salary"}, VAL_INT(), SQLITE3_OSTRING{"John"}, salary);
+	
+	if ( (rc = sqlite3_step(stmt2.getStmt())) != SQLITE_DONE ) {
+		throw sqlite3_exception(sqlite3_errstr(rc));
 	}
 	if ((rc = sqlite3_reset(stmt)) != SQLITE_OK) {
 		//std::cerr << "sqlite3_reset: " << sqlite3_errstr(rc) << std::endl;

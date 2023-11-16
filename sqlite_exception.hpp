@@ -36,6 +36,7 @@ namespace cxx_sqlite3
         abort      = SQLITE_ABORT     ,
         busy       = SQLITE_BUSY      ,
         locked     = SQLITE_LOCKED    ,
+        misuse     = SQLITE_MISUSE    ,
         // ...
     };
 
@@ -81,6 +82,19 @@ namespace cxx_sqlite3
         exception_column(const char *msg) 
             : exception((std::string{"error: sqlite3_column: "} + msg).c_str()) {}
     };
+    /** exception thrown on sqlite3_step function */
+    struct exception_step: public exception
+    {
+        exception_step(const char *msg) 
+            : exception((std::string{"error: sqlite3_step: "} + msg).c_str()) {}
+    };
+    /** exception thrown on sqlite3_reset function */
+    struct exception_reset: public exception
+    {
+        exception_reset(const char *msg) 
+            : exception((std::string{"error: sqlite3_step: "} + msg).c_str()) {}
+    };
+    
     // TODO: more specializations ...
 
 }

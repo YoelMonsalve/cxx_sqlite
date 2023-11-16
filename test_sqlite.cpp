@@ -230,13 +230,12 @@ int main(int argc, char** argv)
 	double salary = 300.22;
 	//db.bind(stmt, {":id", ":name", ":salary"}, VAL_INT(), SQLITE3_OSTRING{"John"}, salary);
 	stmt2.bind({":id", ":name", ":salary"}, VAL_INT(), SQLITE3_OSTRING{"John"}, salary);
-	
-	if ( (rc = sqlite3_step(stmt2.getStmt())) != SQLITE_DONE ) {
-		throw sqlite3_exception(sqlite3_errstr(rc));
-	}
-	if ((rc = sqlite3_reset(stmt)) != SQLITE_OK) {
+	stmt2.step();
+
+	/*if ((rc = sqlite3_reset(stmt)) != SQLITE_OK) {
 		//std::cerr << "sqlite3_reset: " << sqlite3_errstr(rc) << std::endl;
-	}
+	}*/
+	stmt2.reset();
 
 	/** clear statement */
 	if ((rc = sqlite3_finalize(stmt)) != SQLITE_OK) {

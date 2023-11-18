@@ -39,6 +39,7 @@ namespace cxx_sqlite3
         misuse     = SQLITE_MISUSE    ,
         // ...
     };
+    using return_code_t = error_code_t;
 
     // another approach ... (thoughts ?)
     struct error_code2 {
@@ -54,6 +55,7 @@ namespace cxx_sqlite3
         static const value_type busy       = SQLITE_BUSY      ;
         static const value_type locked     = SQLITE_LOCKED    ;
     };
+
 }
 
 namespace cxx_sqlite3
@@ -92,11 +94,36 @@ namespace cxx_sqlite3
     struct exception_reset: public exception
     {
         exception_reset(const char *msg) 
-            : exception((std::string{"error: sqlite3_step: "} + msg).c_str()) {}
+            : exception((std::string{"error: sqlite3_reset: "} + msg).c_str()) {}
+    };
+    /** exception thrown on sqlite3_finalize function */
+    struct exception_finalize: public exception
+    {
+        exception_finalize(const char *msg) 
+            : exception((std::string{"error: sqlite3_finalize: "} + msg).c_str()) {}
     };
     
-    // TODO: more specializations ...
+    /** exception thrown on `sqlite3_open` function */
+    struct exception_open: public exception
+    {
+        exception_open(const char *msg) 
+            : exception((std::string{"error: sqlite3_open: "} + msg).c_str()) {}
+    };
+    /** exception thrown on `sqlite3_close` function */
+    struct exception_close: public exception
+    {
+        exception_close(const char *msg) 
+            : exception((std::string{"error: sqlite3_close: "} + msg).c_str()) {}
+    };
 
+    /** TODO: constant exceptions */
+    struct const_exception
+    {
+        static const exception ex1;
+    };
+    const exception const_exception::ex1 = exception("my exception 1");
+    
+    // TODO: more specializations ...
 }
 
 typedef cxx_sqlite3::exception sqlite3_exception;

@@ -135,12 +135,11 @@ int main(int argc, char** argv)
 	char* messageError; 
 
 	if (rcode != SQLITE_OK) { 
-		std::cerr << "Error open DB " << messageError << std::endl; 
+		std::cerr << "Error open DB " << sqlite3_errstr(rcode) << std::endl; 
 		return -1; 
 	} 
 	else
 		std::cout << "Open Database Successfully!" << std::endl; 
-    sqlite3_free(messageError);
 
     // Run a query
 	std::string sql = "CREATE TABLE PERSON("
@@ -157,13 +156,11 @@ int main(int argc, char** argv)
 	else
 		std::cout << "Table created Successfully" << std::endl; 
 	
-
 	sql = "SELECT * FROM PERSON;"; 
 
 	std::cout << "STATE OF TABLE BEFORE INSERT" << std::endl; 
 
 	rcode = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
-
 
 	/*****************************************************
 	 *
@@ -203,8 +200,8 @@ int main(int argc, char** argv)
 	retrieved.
 	*/
 
-	cxx_sqlite3::db db{};
-	
+	cxx_sqlite3::db db("foo.db");
+
 	sqlite3_stmt *stmt;
 	error_code_t rc;
 	sqlite::statement stmt2(conn);
@@ -238,15 +235,14 @@ int main(int argc, char** argv)
 	stmt2.reset();
 
 	/** clear statement */
-	if ((rc = sqlite3_finalize(stmt)) != SQLITE_OK) {
-		std::cerr << "sqlite3_finalize: " << sqlite3_errmsg(conn) << std::endl; 
-	}
+	rc = stmt2.finalize();
 
     // Close DB connection, and exit
     if (sqlite3_close(conn) != SQLITE_OK) 
         std::cerr << "Error closing DB connection.\n";
     else 
         std::cout << "DB connection closed successfully.\n"; 
+	exit(0);
 	return (0); 
 } 
 

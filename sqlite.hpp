@@ -79,13 +79,14 @@ namespace cxx_sqlite3
     /** sqlite3 prepared statement */
     class statement
     {
-        sqlite3      *conn_;    /* sqlite3 DB connection */
-        const char   *pzTail;   /* pointer to unused portion */
-        sqlite3_stmt *pStmt;    /* underlying sqlite3 primitive statement */
-        error_code_t  rc_;      /* return code of the last operation */
+        sqlite3      *conn_  = nullptr;      /* sqlite3 DB connection */
+        const char   *pzTail = nullptr;      /* pointer to unused portion */
+        sqlite3_stmt *pStmt  = nullptr;      /* underlying sqlite3 primitive statement */
+        error_code_t  rc_ = error_code::ok;  /* return code of the last operation */
 
     public:
         /** constructor */
+        statement() : conn_(nullptr) {}
         statement(sqlite3 *conn) 
             : conn_(conn), pStmt(nullptr), pzTail(nullptr) {}
         ~statement()
@@ -399,17 +400,83 @@ namespace cxx_sqlite3
             }
             return rc;
         }
+
+        /** 
+         * statement finalize 
+         * https://www.sqlite.org/c3ref/finalize.html
+         * */
+        error_code_t finalize() const noexcept
+        {
+            error_code_t rc;
+            /* If the most recent evaluation of the statement encountered 
+             * no errors or if the statement is never been evaluated, 
+             * then sqlite3_finalize() returns SQLITE_OK. 
+             * If the most recent evaluation of statement S failed, 
+             * then sqlite3_finalize(S) returns the appropriate error code 
+             * or extended error code. */
+            return sqlite3_finalize(pStmt);
+        }
     };
 
     /** Main class */
     class db
     {
         // ... private methods here 
+        sqlite3   *conn;    // internal sqlite3 connection
+        statement *stmt;    // pointer to internal statement
 
     public:
-
         /** constructors */
-        db() {}
+        db(const char *filename) : conn(nullptr), stmt(nullptr)
+        {
+            if (!filename || !*filename) 
+                throw exception_open("filename is null or empty.");
+                
+            return_code_t rc = sqlite3_open_v2(
+                filename,         // datafile name
+                &conn,                // sqlite3 object 
+                SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE         // open flags
+                    | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_NOFOLLOW,
+                NULL                  // zVfs
+            );
+            if (rc != error_code::ok) {
+                throw exception_open(sqlite3_errstr(rc));
+            }
+            /* initialize a connection objet */
+            stmt = new statement(conn);
+        }
+        db(const string &filename) : db(filename.c_str()) {}
+
+        // TODO: Rule of Three: copy constructor, move constructor, swap, assignment
+        //       operator
+
+        /** message associated to the more recent error */
+        const char * errmsg() const noexcept
+        {
+            return sqlite3_errmsg(conn);
+        }
+
+        /** close actual connection */
+        return_code_t close() const 
+        {
+            return_code_t rc = sqlite3_close(conn);
+            if (rc != error_code::ok) {
+                throw exception_close(errmsg());
+            } else
+                return rc;
+        }
+
+        /** prepare internal statement */
+        db &prepare(const char *zSql, int nByte = -1)
+        {
+            if (stmt == nullptr)
+                throw exception("in db::prepare: statement object is null");
+            stmt->prepare(zSql, nByte);
+            return *this;
+        }
+
+        /** destructor */
+        ~db() { close(); }
     };
 
     /** built-in sqlite3 destructors */

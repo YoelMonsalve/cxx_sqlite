@@ -11,7 +11,7 @@
  * @date    2023-11-11
  * 
  * Copyright (C) VDI Technologies, LLC. 2019-2023.
- * Tulsa - Oklahoma.
+ * Tulsa, OK..
  */
 
 #ifndef SQLITE_HPP_
@@ -56,6 +56,7 @@ namespace cxx_sqlite3
     //
     using destructor_type = sqlite3_destructor_type;
     using col_index_t     = int;
+    using connection      = sqlite3 *;    // sqlite3 primitive connection type
 
     /** encoding methods */
     enum encoding : unsigned char {
@@ -91,7 +92,11 @@ namespace cxx_sqlite3
             : conn_(conn), pStmt(nullptr), pzTail(nullptr) {}
         ~statement()
         {
-            sqlite3_free(pStmt);    // free resources
+            finalize();
+            //sqlite3_free(pStmt);    // apparently, sqlite3_finalize()
+                                      // actually frees the sqlite3_stmt* pointer
+                                      // passed as argument
+            pStmt = nullptr;
         }
 
         /** getter (access) methods */
@@ -352,9 +357,9 @@ namespace cxx_sqlite3
             else
                 return rc;
         }
-        // main method
+        // main bind method
         template <typename T, typename... Ts>
-        error_code_t  bind(vector<string> col_ids, T val, Ts... vals)
+        error_code_t bind(vector<string> col_ids, T val, Ts... vals)
         {
             return bind_variadic__(0, col_ids, val, vals...);
         }
@@ -431,7 +436,7 @@ namespace cxx_sqlite3
         {
             if (!filename || !*filename) 
                 throw exception_open("filename is null or empty.");
-                
+
             return_code_t rc = sqlite3_open_v2(
                 filename,         // datafile name
                 &conn,                // sqlite3 object 
@@ -456,16 +461,6 @@ namespace cxx_sqlite3
             return sqlite3_errmsg(conn);
         }
 
-        /** close actual connection */
-        return_code_t close() const 
-        {
-            return_code_t rc = sqlite3_close(conn);
-            if (rc != error_code::ok) {
-                throw exception_close(errmsg());
-            } else
-                return rc;
-        }
-
         /** prepare internal statement */
         db &prepare(const char *zSql, int nByte = -1)
         {
@@ -475,13 +470,55 @@ namespace cxx_sqlite3
             return *this;
         }
 
+        /** bind values */
+        template <typename... Ts>
+        db &bind(vector<string> col_ids, Ts... vals)
+        {
+            stmt->bind(col_ids, vals...);
+            return *this;
+        }
+
+        /** step */
+        return_code_t step() const { return stmt->step(); }
+
+        /** reset */
+        return_code_t reset() const { return stmt->reset(); }
+
+        /** close actual connection */
+        return_code_t close()
+        {
+            return_code_t rc = sqlite3_close(conn);
+            if (rc != error_code::ok) {
+                throw exception_close(errmsg());
+            } else {
+                //sqlite3_free(conn);    // apparently, sqlite3_close()
+                                         // actually frees the sqlite3* pointer
+                                         // passed as argument
+                conn = nullptr;
+                return rc;
+            }
+        }
+
+        /** 
+         * Get direct access to the internal connection object .
+         * Be cautious when using this (!) */
+        connection getConnection() const {
+            return conn;
+        }
+
         /** destructor */
-        ~db() { close(); }
+        ~db() {
+            std::cout << "db::~db() called\n";
+            delete stmt;    // finalize internal statement
+            close();        // close connection
+        }
     };
 
     /** built-in sqlite3 destructors */
     cxx_sqlite3::destructor_type cxx_sqlite3::bind_handler::bind_static    = SQLITE_STATIC;
     cxx_sqlite3::destructor_type cxx_sqlite3::bind_handler::bind_transient = SQLITE_TRANSIENT;
+
+    
 }
 
 #endif

@@ -123,26 +123,14 @@ int main(int argc, char** argv)
 	exit(0);
 	*/
 
-    sqlite3* conn; 
-	int rcode = 0; 
-	rcode = sqlite3_open_v2(
-        "example.db",         // datafile name
-        &conn,                // sqlite3 object 
-        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE         // open flags
-            | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_NOFOLLOW,
-        NULL                  // zVfs
-    );
 	char* messageError; 
+	std::string sql;
+    sqlite::return_code_t rc;
+	sqlite::db db("example.db");
 
-	if (rcode != SQLITE_OK) { 
-		std::cerr << "Error open DB " << sqlite3_errstr(rcode) << std::endl; 
-		return -1; 
-	} 
-	else
-		std::cout << "Open Database Successfully!" << std::endl; 
-
+	#if 0
     // Run a query
-	std::string sql = "CREATE TABLE PERSON("
+	sql = "CREATE TABLE PERSON("
 					"id       INTEGER PRIMARY KEY NOT NULL,"
 					"name     TEXT,"
 					"salary   REAL NOT NULL);"; 
@@ -155,12 +143,13 @@ int main(int argc, char** argv)
 	} 
 	else
 		std::cout << "Table created Successfully" << std::endl; 
-	
-	sql = "SELECT * FROM PERSON;"; 
+	#endif
 
 	std::cout << "STATE OF TABLE BEFORE INSERT" << std::endl; 
+	sql = "SELECT * FROM PERSON;"; 
 
-	rcode = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
+	sqlite::connection conn = db.getConnection();
+	rc = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
 
 	/*****************************************************
 	 *
@@ -200,49 +189,28 @@ int main(int argc, char** argv)
 	retrieved.
 	*/
 
-	cxx_sqlite3::db db("foo.db");
-
-	sqlite3_stmt *stmt;
-	error_code_t rc;
-	sqlite::statement stmt2(conn);
-	stmt2.prepare("INSERT INTO PERSON VALUES(:id,:name,:salary);");
-
 	/** insert record, and flush statement */
 	int iCol;
 	int val = 1;
 	SQLITE3_OINT VAL_INT = val;
-	
-	/*if ( (rc = db.bind_one(stmt, pair<string, cxx_sqlite3::basic_object<int>>{":id", VAL_INT()})) != SQLITE_OK) {
-		throw sqlite3_exception(sqlite3_errstr(rc));
-	}
-
-	if ( (rc = db.bind_one(stmt, ":name", "John")) != SQLITE_OK) {
-		throw sqlite3_exception(sqlite3_errstr(rc));
-	}
-	
-	if ( (rc = db.bind_one(stmt, ":salary", VAL_DBL())) != SQLITE_OK) {
-		throw sqlite3_exception(sqlite3_errstr(rc));
-	}
-	*/
 	double salary = 300.22;
-	//db.bind(stmt, {":id", ":name", ":salary"}, VAL_INT(), SQLITE3_OSTRING{"John"}, salary);
-	stmt2.bind({":id", ":name", ":salary"}, VAL_INT(), SQLITE3_OSTRING{"John"}, salary);
-	stmt2.step();
+	
+	db.prepare("INSERT INTO PERSON VALUES(:id,:name,:salary);")
+	  .bind({":id", ":name", ":salary"}, 
+	        VAL_INT(), SQLITE3_OSTRING{"John"}, salary);
+	
+	try {
+		db.step();
+		db.reset();
+	} catch (sqlite::exception &e) {
+		cout << "exception detected: " << e.what() << endl;
+	}
+	
+	std::cout << "STATE OF TABLE AFTER INSERT" << std::endl; 
+	sql = "SELECT * FROM PERSON;"; 
 
-	/*if ((rc = sqlite3_reset(stmt)) != SQLITE_OK) {
-		//std::cerr << "sqlite3_reset: " << sqlite3_errstr(rc) << std::endl;
-	}*/
-	stmt2.reset();
+	rc = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
 
-	/** clear statement */
-	rc = stmt2.finalize();
-
-    // Close DB connection, and exit
-    if (sqlite3_close(conn) != SQLITE_OK) 
-        std::cerr << "Error closing DB connection.\n";
-    else 
-        std::cout << "DB connection closed successfully.\n"; 
-	exit(0);
-	return (0); 
+	return 0; 
 } 
 

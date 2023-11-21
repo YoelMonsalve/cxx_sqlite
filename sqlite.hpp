@@ -17,7 +17,6 @@
 #ifndef SQLITE_HPP_
 #define SQLITE_HPP_
 
-#include "std_version.h"
 #include <limits>
 #include <string>
 #include <cstring>
@@ -27,11 +26,10 @@
 #include <tuple>
 #include <sqlite3.h>
 
-#include "./object.hpp"
-#include "./sqlite_exception.hpp"
-#include "./throwable.hpp"
-
-//SQLITE_INTEGER, SQLITE_FLOAT, SQLITE_TEXT, SQLITE_BLOB, or SQLITE_NULL.
+#include "std_version.hpp"
+#include "object.hpp"
+#include "exception.hpp"
+#include "throwable.hpp"
 
 namespace cxx_sqlite3
 {
@@ -60,10 +58,45 @@ namespace cxx_sqlite3
 
     /** encoding methods */
     enum encoding : unsigned char {
-        utf8 = SQLITE_UTF8, 
-        utf16 = SQLITE_UTF16, 
+        utf8    = SQLITE_UTF8, 
+        utf16   = SQLITE_UTF16, 
         utf16be = SQLITE_UTF16BE,
         utf16le = SQLITE_UTF16LE,
+    };
+
+    /** 
+     * open modes 
+     * https://www.sqlite.org/c3ref/open.html
+     */
+    typedef int32_t open_mode_t;
+    enum open_mode : open_mode_t
+    {
+        /* The database is opened in read-only mode. If the database does not 
+         * already exist, an error is returned. */
+        readonly = SQLITE_OPEN_READONLY,
+        /* The database is opened for reading and writing if possible, 
+         * or reading only if the file is write protected by the operating system. */
+        readwrite = SQLITE_OPEN_READWRITE,
+        /* The database file is created if it does not already exist. */
+        create = SQLITE_OPEN_CREATE,
+        /* The filename can be interpreted as a URI if this flag is set. */
+        uri = SQLITE_OPEN_URI,
+        /* The database will be opened as an in-memory database. */
+        memory = SQLITE_OPEN_MEMORY,
+        /* The new database connection will use the "multi-thread" threading mode. */
+        nomutex = SQLITE_OPEN_NOMUTEX,
+        /* The new database connection will use the "serialized" threading mode. */
+        fullmutex = SQLITE_OPEN_FULLMUTEX,
+        /* The database is opened shared cache enabled, overriding the default shared 
+         * cache setting provided by sqlite3_enable_shared_cache(). */
+        sharedcache = SQLITE_OPEN_SHAREDCACHE,
+        /* The database is opened shared cache disabled, overriding the default shared 
+         * cache setting provided by sqlite3_enable_shared_cache(). */
+        privatecache = SQLITE_OPEN_PRIVATECACHE,
+        /* The database connection comes up in "extended result code mode". */
+        //exrescode = SQLITE_OPEN_EXRESCODE,
+        /* The database filename is not allowed to contain a symbolic link */
+        nofollow = SQLITE_OPEN_NOFOLLOW,
     };
 
     /** bind modes */
@@ -419,7 +452,9 @@ namespace cxx_sqlite3
              * If the most recent evaluation of statement S failed, 
              * then sqlite3_finalize(S) returns the appropriate error code 
              * or extended error code. */
-            return sqlite3_finalize(pStmt);
+            std::cout << "sqlite3_finalize...\n";
+            rc = sqlite3_finalize(pStmt);
+            return rc;
         }
     };
 
@@ -432,17 +467,19 @@ namespace cxx_sqlite3
 
     public:
         /** constructors */
-        db(const char *filename) : conn(nullptr), stmt(nullptr)
+        db(const char *filename, 
+            int mode = open_mode::readwrite | open_mode::create
+                       | open_mode::nomutex | open_mode::nofollow)
+            : conn(nullptr), stmt(nullptr)
         {
             if (!filename || !*filename) 
                 throw exception_open("filename is null or empty.");
 
             return_code_t rc = sqlite3_open_v2(
-                filename,         // datafile name
-                &conn,                // sqlite3 object 
-                SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE         // open flags
-                    | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_NOFOLLOW,
-                NULL                  // zVfs
+                filename,      // datafile name
+                &conn,         // sqlite3 object 
+                mode,          // open flags
+                NULL           // zVfs
             );
             if (rc != error_code::ok) {
                 throw exception_open(sqlite3_errstr(rc));
@@ -513,12 +550,6 @@ namespace cxx_sqlite3
             close();        // close connection
         }
     };
-
-    /** built-in sqlite3 destructors */
-    cxx_sqlite3::destructor_type cxx_sqlite3::bind_handler::bind_static    = SQLITE_STATIC;
-    cxx_sqlite3::destructor_type cxx_sqlite3::bind_handler::bind_transient = SQLITE_TRANSIENT;
-
-    
 }
 
 #endif

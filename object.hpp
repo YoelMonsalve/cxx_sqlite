@@ -14,11 +14,12 @@
 #ifndef OBJECT_HPP_
 #define OBJECT_HPP_
 
-#include "std_version.h"
 #include <iostream>
 #include <cassert>
 #include <vector>
 #include <string>
+
+#include "std_version.hpp"
 
 namespace cxx_sqlite3
 {

@@ -127,6 +127,7 @@ int main(int argc, char** argv)
 	std::string sql;
     sqlite::return_code_t rc;
 	sqlite::db db("example.db");
+	sqlite::connection conn = db.getConnection();
 
 	#if 0
     // Run a query
@@ -135,27 +136,23 @@ int main(int argc, char** argv)
 					"name     TEXT,"
 					"salary   REAL NOT NULL);"; 
 	db.prepare(sql.c_str());
-	db.step();
+	rc = db.step();
+	if (rc != SQLITE_DONE) { 
+		std::cerr << "Error on CREATE TABLE: " << sqlite3_errmsg(conn) << "\n"; //messageError << "'\n"; 
+	} 
+	else
+		std::cout << "Table created Successfully" << std::endl; 
+
 	db.reset();
 	db.finalize();
+	return 0;
 	#endif
 
 	db.execute("CREATE TABLE IF NOT EXISTS PERSON("
 					"id       INTEGER PRIMARY KEY NOT NULL,"
 					"name     TEXT,"
 					"salary   REAL NOT NULL);"
-		, {});
-	return 0;
-
-	sqlite::connection conn = db.getConnection();
-	rc = sqlite3_exec(conn, sql.c_str(), NULL, 0, &messageError); 
-
-	if (rc != SQLITE_OK) { 
-		std::cerr << "Error on CREATE TABLE: " << sqlite3_errmsg(conn) << "\n"; //messageError << "'\n"; 
-		sqlite3_free(messageError); 
-	} 
-	else
-		std::cout << "Table created Successfully" << std::endl; 
+		);
 
 	std::cout << "STATE OF TABLE BEFORE INSERT" << std::endl; 
 	sql = "SELECT * FROM PERSON;"; 
@@ -235,6 +232,7 @@ int main(int argc, char** argv)
 
 	rc = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
 
+	return 0;
 	return 0; 
 } 
 

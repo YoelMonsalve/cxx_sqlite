@@ -558,6 +558,12 @@ namespace cxx_sqlite3
             return *this;
         }
 
+        /** 
+         * get access to internal more recent prepared statement
+         * NOTE: this is dangerous and discouraged, prefer `db::execute` */
+        statement *getStatement() const
+        { return stmt; }
+
         /** bind values */
         template <class... Ts>
         db &bind(vector<string> col_ids, Ts... vals)

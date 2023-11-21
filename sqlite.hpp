@@ -361,7 +361,7 @@ namespace cxx_sqlite3
          *   db.bind_one(stmt, std::pair<string, int>{":id", 1})
          *   db.bind_one(stmt, std::pair<string, string>{":name", "John"})
          */
-        template <typename ColIdType, typename ColValType>
+        template <class ColIdType, class ColValType>
         error_code_t bind_one(std::pair<ColIdType, ColValType> pair_)
         {   
             return bind_one(pStmt, pair_.first, pair_.second);
@@ -376,7 +376,7 @@ namespace cxx_sqlite3
             return error_code::ok; 
         }
         // ________________ recursive case
-        template <typename T, typename... Ts>
+        template <class T, class... Ts>
         error_code_t bind_variadic__(vector<string>::size_type i, vector<string> col_ids, T val, Ts... vals)
         {
             error_code_t rc = bind_one(col_ids[i], val);
@@ -391,14 +391,14 @@ namespace cxx_sqlite3
                 return rc;
         }
         // main bind method
-        template <typename T, typename... Ts>
+        template <class T, class... Ts>
         error_code_t bind(vector<string> col_ids, T val, Ts... vals)
         {
             return bind_variadic__(0, col_ids, val, vals...);
         }
 
         typedef vector<generic_object> generic_col_vals;
-        template <typename T>
+        template <class T>
         error_code_t bind(vector<string> col_ids, generic_col_vals vals)
         {
             error_code_t rc;
@@ -443,7 +443,7 @@ namespace cxx_sqlite3
          * statement finalize 
          * https://www.sqlite.org/c3ref/finalize.html
          * */
-        error_code_t finalize() const noexcept
+        error_code_t finalize() noexcept
         {
             error_code_t rc;
             /* If the most recent evaluation of the statement encountered 
@@ -452,10 +452,61 @@ namespace cxx_sqlite3
              * If the most recent evaluation of statement S failed, 
              * then sqlite3_finalize(S) returns the appropriate error code 
              * or extended error code. */
-            std::cout << "sqlite3_finalize...\n";
             rc = sqlite3_finalize(pStmt);
+            pStmt = nullptr;
             return rc;
         }
+
+        /**
+         * wrapper for execute: prepare + step + reset + finalize
+         */
+        template <class... Ts>
+        void execute(const char *sql, 
+            vector<string> col_ids, Ts... vals) 
+        {
+            return_code_t rc;
+            prepare(sql);
+            bind(col_ids, vals...);
+            while (rc != error_code::done) {
+                try {
+                    rc = step();
+                    std::cout << "last step returned: " << rc 
+                        << ", ROW: " << error_code::row
+                        << ", DONE: " << error_code::done
+                        << std::endl;
+                    reset();
+                } catch (exception &e) {
+                    std::cout << "exception detected: " << e.what() << std::endl;
+                    break;
+                }
+            }
+            finalize();
+        }
+
+        template <class... Ts>
+        void execute(const string &sql, 
+            vector<string> col_ids, Ts... vals)
+        { execute(sql.c_str(), col_ids, vals...); }
+
+        void execute(const char *sql) 
+        {
+            return_code_t rc;
+            prepare(sql);
+            try {
+                rc = step();
+                std::cout << "last step returned: " << rc 
+                    << ", ROW: " << error_code::row
+                    << ", DONE: " << error_code::done
+                    << std::endl;
+                reset();
+            } catch (exception &e) {
+                std::cout << "exception detected: " << e.what() << std::endl;
+            }
+            finalize();
+        }
+
+        void execute(const string &sql)
+        { execute(sql.c_str()); }
     };
 
     /** Main class */
@@ -508,7 +559,7 @@ namespace cxx_sqlite3
         }
 
         /** bind values */
-        template <typename... Ts>
+        template <class... Ts>
         db &bind(vector<string> col_ids, Ts... vals)
         {
             stmt->bind(col_ids, vals...);
@@ -536,6 +587,9 @@ namespace cxx_sqlite3
             }
         }
 
+        /** finalize internal statement */
+        void finalize() { delete stmt; }
+
         /** 
          * Get direct access to the internal connection object .
          * Be cautious when using this (!) */
@@ -543,10 +597,32 @@ namespace cxx_sqlite3
             return conn;
         }
 
+        template <class... Ts>
+        void execute(const char *sql, 
+            vector<string> col_ids, Ts... vals) 
+        {
+            stmt->execute(sql, col_ids, vals...);
+        }
+        template <class... Ts>
+        void execute(const string &sql, 
+            vector<string> col_ids, Ts... vals) 
+        {
+            stmt->execute(sql, col_ids, vals...);
+        }
+
+        void execute(const char *sql) 
+        {
+            stmt->execute(sql);
+        }
+        void execute(const string &sql) 
+        {
+            stmt->execute(sql);
+        }
+
         /** destructor */
         ~db() {
             std::cout << "db::~db() called\n";
-            delete stmt;    // finalize internal statement
+            //finalize();     // finalize internal statement
             close();        // close connection
         }
     };

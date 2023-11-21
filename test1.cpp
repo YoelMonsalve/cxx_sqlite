@@ -128,7 +128,7 @@ int main(int argc, char** argv)
     sqlite::return_code_t rc;
 	sqlite::db db("example.db");
 
-	#if 1
+	#if 0
     // Run a query
 	sql = "CREATE TABLE IF NOT EXISTS PERSON("
 					"id       INTEGER PRIMARY KEY NOT NULL,"
@@ -137,6 +137,15 @@ int main(int argc, char** argv)
 	db.prepare(sql.c_str());
 	db.step();
 	db.reset();
+	db.finalize();
+	#endif
+
+	db.execute("CREATE TABLE IF NOT EXISTS PERSON("
+					"id       INTEGER PRIMARY KEY NOT NULL,"
+					"name     TEXT,"
+					"salary   REAL NOT NULL);"
+		, {});
+	return 0;
 
 	sqlite::connection conn = db.getConnection();
 	rc = sqlite3_exec(conn, sql.c_str(), NULL, 0, &messageError); 
@@ -147,7 +156,6 @@ int main(int argc, char** argv)
 	} 
 	else
 		std::cout << "Table created Successfully" << std::endl; 
-	#endif
 
 	std::cout << "STATE OF TABLE BEFORE INSERT" << std::endl; 
 	sql = "SELECT * FROM PERSON;"; 
@@ -197,17 +205,30 @@ int main(int argc, char** argv)
 	SQLITE3_OINT VAL_INT = val;
 	double salary = 300.22;
 	
+	#if 0
 	db.prepare("INSERT INTO PERSON VALUES(:id,:name,:salary);")
 	  .bind({":id", ":name", ":salary"}, 
 	        VAL_INT(), SQLITE3_OSTRING{"John"}, salary);
-	return 0;	
 
-	try {
-		db.step();
-		db.reset();
-	} catch (sqlite::exception &e) {
-		cout << "exception detected: " << e.what() << endl;
+	rc = 0;
+	while (rc != sqlite::error_code::done) {
+		try {
+			rc = db.step();
+			cout << "last step returned: " << rc 
+				<< "ROW: " << sqlite::error_code::row
+				<< "DONE: " << sqlite::error_code::done
+				<< endl;
+			db.reset();
+		} catch (sqlite::exception &e) {
+			cout << "exception detected: " << e.what() << endl;
+		}
 	}
+	db.finalize();
+	#endif
+	db.execute("INSERT INTO PERSON VALUES(:id,:name,:salary);"
+		,{":id", ":name", ":salary"}
+	    ,VAL_INT(), SQLITE3_OSTRING{"John"}, salary
+	);
 	
 	std::cout << "STATE OF TABLE AFTER INSERT" << std::endl; 
 	sql = "SELECT * FROM PERSON;"; 

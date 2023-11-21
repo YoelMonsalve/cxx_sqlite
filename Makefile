@@ -19,21 +19,23 @@ DFLAGS   =
 
 .DELETE_ON_ERROR:
 .PHONY: all pre test clean_all
-.DEFAULT_GOAL: $(tests)
+.DEFAULT_GOAL: all
 
 headers := std_version.hpp exception.hpp throwable.hpp sqlite.hpp object.hpp
 modules := sqlite.cpp
 tests   := test1
 
+all: test
+
 test: $(tests)
 
-test_obj := $(addsuffix .o,$(test))
+tests_obj := $(addsuffix .o,$(tests))
 obj      := sqlite.o
 
 tell:
-	@echo $(test_obj)
+	@echo $(tests_obj)
 
-$(filter %.o,$(test_obj)): %.o: %.cpp $(modules) $(headers)
+$(filter %.o,$(tests_obj)): %.o: %.cpp $(modules) $(headers)
 	$(CXX) -o $@ -c $< $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(DFLAGS)
 
 $(filter %.o,$(obj)): %.o: %.cpp $(modules) $(headers)

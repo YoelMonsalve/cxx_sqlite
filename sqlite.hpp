@@ -498,7 +498,6 @@ namespace cxx_sqlite3
     private:
         const char    *filename_;
         char          *errMsg_        = nullptr;
-        unsigned long exec_n_records_ = 0;
         // ... protected methods here
     protected:        
         sqlite3   *conn;    // internal sqlite3 connection
@@ -624,10 +623,8 @@ namespace cxx_sqlite3
             stmt->execute(sql);
         }
 
-        /**
-         * Prints out the result of the query, in vertical format.
-        */
-        static int printCallback_Vertical(void* data, int Cols, char** ColValues, char** ColNames) 
+        /** Utility callback for command (print a record vertically)*/
+        static int printCallback_Vertical(void *data, int Cols, char **ColValues, char **ColNames) 
         { 
             col_index_t i; 
             //fprintf(stderr, "%s: ", (const char*)data); 
@@ -639,23 +636,81 @@ namespace cxx_sqlite3
             printf("\n"); 
             return 0; 
         } 
-
+        /**
+         * Prints out the result of the query, in vertical format.
+         */
         return_code_t command(const char *sql)
         {
             return_code_t rc;
             errMsg_ = nullptr;
-            exec_n_records_ = 0;
 
             rc = sqlite3_exec(conn, sql, &printCallback_Vertical, (void *)nullptr, &errMsg_);
             if (errMsg_) {
                 fprintf(stderr, "error: %s\n", errMsg_);
             }
-            //printf("%lu rows in set\n", exec_n_records_);
             free(errMsg_);
             return rc;
         }
         inline return_code_t command(const string &sql)
         { return command(sql.c_str()); }
+
+        /**
+         * Prints out the result of the query, in tabular format.
+         */
+        return_code_t command2(const char *sql) 
+        {
+            return_code_t rc;
+            char **result;
+            int nRow, nCol;
+            char *errMsg;
+            int *colWidth = nullptr, width;
+            int i, j;
+            std::ostringstream fmt;
+
+            rc = sqlite3_get_table(
+                conn, sql, &result, &nRow, &nCol, &errMsg
+            );
+            /** 
+             * calculate the max width per column level:
+             * 
+             *  colWidth[j] =     max    {result[i*nCol + j - 1]}
+             *             1<=i<=nRow
+             * 
+             * for j = 1, ..., nCol.
+             */
+            if (nCol > 0) {
+                colWidth = (int *)malloc(nCol * sizeof(int));
+                if (!colWidth) return rc;
+            }
+            for (j=1; j<=nCol; j++) {
+                colWidth[j-1] = 0;
+                for (i=0; i<=nRow; i++) {
+                    width = strlen(result[i*nCol + j - 1]);
+                    if (width > colWidth[j-1]) colWidth[j-1] = width;
+                }
+            }
+            
+            /* print column names */
+            for (i = 0; i <= nRow; i++) {
+                printf("|");
+                for (j=1; j<=nCol; j++) {
+                    fmt.str("");
+                    fmt << " %" << colWidth[j-1] << "s |";
+                    //cout << "width: " << colWidth[j-1] << ", format: " << fmt.str() << endl;
+                    printf(fmt.str().c_str(), result[i*nCol + j - 1]);
+                }
+                printf("\n");
+            }
+
+            sqlite3_free_table(result);
+            if (errMsg) {
+                fprintf(stderr, "error: %s\n", errMsg);
+            }
+
+            return rc;
+        }
+        inline return_code_t command2(const string &sql)
+        { return command2(sql.c_str()); }
 
         /** Opens an interactive prompt */
         void prompt()

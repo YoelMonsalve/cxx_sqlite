@@ -19,7 +19,10 @@
 
 #include <limits>
 #include <string>
+#include <cstdio>    /* sometimes, it is easier to call printf() */
 #include <cstring>
+#include <iostream>
+#include <sstream>
 #include <vector>
 #include <map>
 #include <unordered_map>
@@ -27,43 +30,19 @@
 #include <sqlite3.h>
 
 #include "std_version.hpp"
+#include "basic_types.hpp"
+#include "functions.hpp"
 #include "object.hpp"
 #include "exception.hpp"
 #include "throwable.hpp"
 
+using std::cin;
+using std::cout;
+using std::cerr;
+using std::endl;
+
 namespace cxx_sqlite3
 {
-    using std::string;
-    using std::vector;
-    using std::tuple;
-    
-    /** symbolic constants for sqlite3 native data types */
-    enum data_type : int {
-        type_int    = SQLITE_INTEGER,
-        type_float  = SQLITE_FLOAT,
-        type_double = SQLITE_FLOAT,
-        type_text   = SQLITE_TEXT,
-        type_blob   = SQLITE_BLOB,
-        type_null   = SQLITE_NULL,
-    };
-
-    /** importing sqlite3 native objects and types to this space */
-    using stmt    = sqlite3_stmt;
-    using int64   = sqlite3_int64;
-    using uint64  = sqlite3_uint64;
-    //
-    using destructor_type = sqlite3_destructor_type;
-    using col_index_t     = int;
-    using connection      = sqlite3 *;    // sqlite3 primitive connection type
-
-    /** encoding methods */
-    enum encoding : unsigned char {
-        utf8    = SQLITE_UTF8, 
-        utf16   = SQLITE_UTF16, 
-        utf16be = SQLITE_UTF16BE,
-        utf16le = SQLITE_UTF16LE,
-    };
-
     /** 
      * open modes 
      * https://www.sqlite.org/c3ref/open.html
@@ -301,7 +280,7 @@ namespace cxx_sqlite3
         error_code_t bind_one(string col_id, int val)
         {
             col_index_t iCol = bind_parameter_index(col_id);
-            std::cout << "bind INT\n";
+            //std::cout << "bind INT\n";
             if (iCol <= 0) { /* ... ? */ return error_code::error;}
             return bind_int(iCol, val);
         }
@@ -309,7 +288,7 @@ namespace cxx_sqlite3
         error_code_t bind_one(string col_id, int64_t val)
         {
             col_index_t iCol = bind_parameter_index(col_id);
-            std::cout << "bind INT64\n";
+            //std::cout << "bind INT64\n";
             if (iCol <= 0) { /* ... ? */ return error_code::error;}
             return bind_int_64(iCol, val);
         }
@@ -317,7 +296,7 @@ namespace cxx_sqlite3
         error_code_t bind_one(string col_id, double val)
         {
             col_index_t iCol = bind_parameter_index(col_id);
-            std::cout << "bind DOUBLE\n";
+            //std::cout << "bind DOUBLE\n";
             if (iCol <= 0) { /* ... ? */ return error_code::error;}
             return bind_double(iCol, val);
         }
@@ -325,7 +304,7 @@ namespace cxx_sqlite3
         error_code_t bind_one(string col_id, const string &val, destructor_type hdl = bind_handler::bind_transient)
         {
             col_index_t iCol = bind_parameter_index(col_id);
-            std::cout << "bind const string &\n";
+            //std::cout << "bind const string &\n";
             if (iCol <= 0) { /* ... ? */ return error_code::error;}
             return bind_text(iCol, val.c_str(), val.size(), hdl);
         }
@@ -333,8 +312,8 @@ namespace cxx_sqlite3
         error_code_t bind_one(string col_id, const string &val, destructor_type hdl, encoding encoding_)
         {
             col_index_t iCol = bind_parameter_index(col_id);
-            std::cout << "bind const string & (64)\n";
-            std::cout << "iCol: " << iCol << std::endl;
+            //std::cout << "bind const string & (64)\n";
+            //std::cout << "iCol: " << iCol << std::endl;
             if (iCol <= 0) { /* ... ? */ return error_code::error;}
             return bind_text64(iCol, val.c_str(), val.size(), hdl, encoding_);
         }
@@ -342,7 +321,7 @@ namespace cxx_sqlite3
         error_code_t bind_one(string col_id, const void * val, uint64 n, destructor_type hdl = bind_handler::bind_transient)
         {
             col_index_t iCol = bind_parameter_index(col_id);
-            std::cout << "bind blob (64)\n";
+            //std::cout << "bind blob (64)\n";
             if (iCol <= 0) { /* ... ? */ return error_code::error;}
             return bind_blob64(iCol, val, n, hdl);
         }
@@ -350,7 +329,7 @@ namespace cxx_sqlite3
         error_code_t bind_one(string col_id)
         {
             col_index_t iCol = bind_parameter_index(col_id);
-            std::cout << "bind NULL \n";
+            //std::cout << "bind NULL \n";
             if (iCol <= 0) { /* ... ? */ return error_code::error;}
             return bind_null(iCol);
         }
@@ -380,7 +359,7 @@ namespace cxx_sqlite3
         error_code_t bind_variadic__(vector<string>::size_type i, vector<string> col_ids, T val, Ts... vals)
         {
             error_code_t rc = bind_one(col_ids[i], val);
-            std::cout << "OK ? " << (rc == SQLITE_OK ? 'Y' : 'N') << std::endl;
+            //std::cout << "OK ? " << (rc == SQLITE_OK ? 'Y' : 'N') << std::endl;
             if (rc != error_code::ok) {
                 // error, throw exception here
                 return rc;
@@ -421,6 +400,8 @@ namespace cxx_sqlite3
              * on success. On other cases (SQLITE_BUSY), throw exception */
             rc = sqlite3_step(pStmt);
             if (rc != error_code::done && rc != error_code::row) {
+                std::cout << "step rc: " << rc 
+                    << ", BUSY: " << error_code::busy << std::endl;
                 throw exception_step(errmsg());
             }
             return rc;
@@ -470,10 +451,10 @@ namespace cxx_sqlite3
             while (rc != error_code::done) {
                 try {
                     rc = step();
-                    std::cout << "last step returned: " << rc 
+                    /*std::cout << "last step returned: " << rc 
                         << ", ROW: " << error_code::row
                         << ", DONE: " << error_code::done
-                        << std::endl;
+                        << std::endl;*/
                     reset();
                 } catch (exception &e) {
                     std::cout << "exception detected: " << e.what() << std::endl;
@@ -494,10 +475,10 @@ namespace cxx_sqlite3
             prepare(sql);
             try {
                 rc = step();
-                std::cout << "last step returned: " << rc 
+                /*std::cout << "last step returned: " << rc 
                     << ", ROW: " << error_code::row
                     << ", DONE: " << error_code::done
-                    << std::endl;
+                    << std::endl;*/
                 reset();
             } catch (exception &e) {
                 std::cout << "exception detected: " << e.what() << std::endl;
@@ -505,14 +486,21 @@ namespace cxx_sqlite3
             finalize();
         }
 
-        void execute(const string &sql)
+        inline void execute(const string &sql)
         { execute(sql.c_str()); }
     };
 
     /** Main class */
     class db
     {
+
         // ... private methods here 
+    private:
+        const char    *filename_;
+        char          *errMsg_        = nullptr;
+        unsigned long exec_n_records_ = 0;
+        // ... protected methods here
+    protected:        
         sqlite3   *conn;    // internal sqlite3 connection
         statement *stmt;    // pointer to internal statement
 
@@ -521,8 +509,16 @@ namespace cxx_sqlite3
         db(const char *filename, 
             int mode = open_mode::readwrite | open_mode::create
                        | open_mode::nomutex | open_mode::nofollow)
-            : conn(nullptr), stmt(nullptr)
+            : conn(nullptr), stmt(nullptr), 
+              filename_(filename), errMsg_(nullptr)
         {
+            open(filename, mode);
+        }
+        db(const string &filename) : db(filename.c_str()) {}
+
+        /** starts a new connection to the given database filename */
+        void open(const char *filename, int mode)
+        {   
             if (!filename || !*filename) 
                 throw exception_open("filename is null or empty.");
 
@@ -538,7 +534,10 @@ namespace cxx_sqlite3
             /* initialize a connection objet */
             stmt = new statement(conn);
         }
-        db(const string &filename) : db(filename.c_str()) {}
+
+        /** alias for open */
+        inline void connect(const char *filename, int mode)
+        { open(filename, mode); }
 
         // TODO: Rule of Three: copy constructor, move constructor, swap, assignment
         //       operator
@@ -624,6 +623,72 @@ namespace cxx_sqlite3
         {
             stmt->execute(sql);
         }
+
+        /**
+         * Prints out the result of the query, in vertical format.
+        */
+        static int printCallback_Vertical(void* data, int Cols, char** ColValues, char** ColNames) 
+        { 
+            col_index_t i; 
+            //fprintf(stderr, "%s: ", (const char*)data); 
+
+            for (i = 0; i < Cols; i++) { 
+                //++exec_n_records_;
+                printf("%s = %s\n", ColNames[i], ColValues[i] ? ColValues[i] : "NULL"); 
+            }
+            printf("\n"); 
+            return 0; 
+        } 
+
+        return_code_t command(const char *sql)
+        {
+            return_code_t rc;
+            errMsg_ = nullptr;
+            exec_n_records_ = 0;
+
+            rc = sqlite3_exec(conn, sql, &printCallback_Vertical, (void *)nullptr, &errMsg_);
+            if (errMsg_) {
+                fprintf(stderr, "error: %s\n", errMsg_);
+            }
+            //printf("%lu rows in set\n", exec_n_records_);
+            free(errMsg_);
+            return rc;
+        }
+        inline return_code_t command(const string &sql)
+        { return command(sql.c_str()); }
+
+        /** Opens an interactive prompt */
+        void prompt()
+        {
+            string sql;
+            const char   UP_ARROW[] = "^[[A";
+            const char DOWN_ARROW[] = "^[[B";
+
+            std::ostringstream cmd;
+            cmd << "sqlite3 " << filename_;
+            system(cmd.str().c_str());
+        }
+        /** Opens an interactive prompt (manual version, NOT recommended)*/
+        void prompt2()
+        {
+            string sql;
+            const char   UP_ARROW[] = "^[[A";
+            const char DOWN_ARROW[] = "^[[B";
+
+            while (1) {
+                cout << "SQLite [" << filename_ << "]> ";
+                std::getline(cin, sql);
+                cout << "sql: [" << sql << "]" << endl;
+
+                if (sql == "" || sql == "exit" || sql == "exit;") break;
+                // execute command
+                command(sql.c_str());
+            }
+        }
+
+        /** get autocommit */
+        int autocommit() const 
+        { return sqlite3_get_autocommit(conn); }
 
         /** destructor */
         ~db() {

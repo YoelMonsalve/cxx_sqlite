@@ -8,6 +8,7 @@
 #include <exception>
 #include <error.h>
 #include <sqlite3.h> 
+#include <cassert>
 
 #include "sqlite.hpp"
 
@@ -149,14 +150,15 @@ int main(int argc, char** argv)
 	#endif
 
 	db.execute("CREATE TABLE IF NOT EXISTS PERSON("
-					"id       INTEGER PRIMARY KEY NOT NULL,"
-					"name     TEXT,"
-					"salary   REAL NOT NULL);"
-		);
+				"id       INTEGER PRIMARY KEY NOT NULL,"
+				"name     TEXT,"
+				"salary   REAL NOT NULL);"
+			   );
 
 	std::cout << "STATE OF TABLE BEFORE INSERT" << std::endl; 
 	sql = "SELECT * FROM PERSON;"; 
-	rc = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
+	//rc = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
+	db.command(sql);
 
 	/*****************************************************
 	 *
@@ -222,15 +224,27 @@ int main(int argc, char** argv)
 	}
 	db.finalize();
 	#endif
-	db.execute("INSERT INTO PERSON VALUES(:id,:name,:salary);"
-		,{":id", ":name", ":salary"}
-	    ,VAL_INT(), SQLITE3_OSTRING{"John"}, salary
-	);
+	int N_times = 5;
+	int id = 0;
+	db.execute("BEGIN TRANSACTION");
+	assert(!db.autocommit());
+	while (--N_times >= 0) {
+		++id;
+		db.execute(
+			"INSERT INTO PERSON VALUES(:id,:name,:salary)"
+			" ON CONFLICT(`id`) DO UPDATE SET `name`='name', `salary`='salary';"
+			//"INSERT OR REPLACE INTO PERSON VALUES(:id,:name,:salary)"
+			,{":id", ":name", ":salary"}
+			//,VAL_INT(), SQLITE3_OSTRING{"John"}, salary
+			,id, "John", salary
+		);
+	}
+	db.execute("COMMIT TRANSACTION");
 	
 	std::cout << "STATE OF TABLE AFTER INSERT" << std::endl; 
 	sql = "SELECT * FROM PERSON;"; 
-
-	rc = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
+	//rc = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
+	db.command(sql);
 
 	return 0;
 	return 0; 

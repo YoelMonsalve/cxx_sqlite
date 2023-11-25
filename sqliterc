@@ -1,0 +1,4 @@
+mode            = COLUMN
+separator       = "|"
+main prompt     = "tst> "
+continue prompt = "...> "

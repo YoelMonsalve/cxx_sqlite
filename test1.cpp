@@ -156,10 +156,10 @@ int main(int argc, char** argv)
 			   );
 
 	std::cout << "STATE OF TABLE BEFORE INSERT" << std::endl; 
-	sql = "SELECT * FROM PERSON;"; 
+	sql = "SELECT * FROM PERSON WHERE id>10;"; 
 	//rc = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
-	db.command2(sql);
-	//return 0;
+	db.prompt();
+	return 0;
 
 	/*****************************************************
 	 *

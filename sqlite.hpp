@@ -22,6 +22,7 @@
 #include <cstdio>    /* sometimes, it is easier to call printf() */
 #include <cstring>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <vector>
 #include <map>
@@ -40,6 +41,8 @@ using std::cin;
 using std::cout;
 using std::cerr;
 using std::endl;
+using std::string;
+using std::vector;
 
 namespace cxx_sqlite3
 {
@@ -663,43 +666,16 @@ namespace cxx_sqlite3
             char **result;
             int nRow, nCol;
             char *errMsg;
-            int *colWidth = nullptr, width;
-            int i, j;
-            std::ostringstream fmt;
 
             rc = sqlite3_get_table(
                 conn, sql, &result, &nRow, &nCol, &errMsg
             );
-            /** 
-             * calculate the max width per column level:
-             * 
-             *  colWidth[j] =     max    {result[i*nCol + j - 1]}
-             *             1<=i<=nRow
-             * 
-             * for j = 1, ..., nCol.
-             */
-            if (nCol > 0) {
-                colWidth = (int *)malloc(nCol * sizeof(int));
-                if (!colWidth) return rc;
-            }
-            for (j=1; j<=nCol; j++) {
-                colWidth[j-1] = 0;
-                for (i=0; i<=nRow; i++) {
-                    width = strlen(result[i*nCol + j - 1]);
-                    if (width > colWidth[j-1]) colWidth[j-1] = width;
-                }
-            }
             
-            /* print column names */
-            for (i = 0; i <= nRow; i++) {
-                printf("|");
-                for (j=1; j<=nCol; j++) {
-                    fmt.str("");
-                    fmt << " %" << colWidth[j-1] << "s |";
-                    //cout << "width: " << colWidth[j-1] << ", format: " << fmt.str() << endl;
-                    printf(fmt.str().c_str(), result[i*nCol + j - 1]);
-                }
-                printf("\n");
+            if (nRow > 0) {
+                printTable(nRow, nCol, result);
+                cout << nRow << " rows in set" << endl << endl;
+            } else {
+                cout << "Empty set" << endl << endl;
             }
 
             sqlite3_free_table(result);
@@ -715,12 +691,8 @@ namespace cxx_sqlite3
         /** Opens an interactive prompt */
         void prompt()
         {
-            string sql;
-            const char   UP_ARROW[] = "^[[A";
-            const char DOWN_ARROW[] = "^[[B";
-
             std::ostringstream cmd;
-            cmd << "sqlite3 " << filename_;
+            cmd << "sqlite3 -header -column " << filename_;
             system(cmd.str().c_str());
         }
         /** Opens an interactive prompt (manual version, NOT recommended)*/
@@ -733,11 +705,21 @@ namespace cxx_sqlite3
             while (1) {
                 cout << "SQLite [" << filename_ << "]> ";
                 std::getline(cin, sql);
-                cout << "sql: [" << sql << "]" << endl;
 
-                if (sql == "" || sql == "exit" || sql == "exit;") break;
+                if (sql == "" || sql == "exit" || sql == "exit;"
+                    || sql == "exit\\G") break;
                 // execute command
-                command(sql.c_str());
+                size_t sql_len = sql.size();
+                if (sql.substr(sql_len - 1) == ";") {
+                    // tabular style
+                    command2(sql);
+                } else if (sql.substr(sql_len - 2) == "\\G") {
+                    // vertical style
+                    command(sql.substr(0, sql_len - 2));
+                } else {
+                    // tabular style
+                    cout << "??? Unterminated line: " << sql << endl << endl;
+                }
             }
         }
 
@@ -750,6 +732,65 @@ namespace cxx_sqlite3
             std::cout << "db::~db() called\n";
             //finalize();     // finalize internal statement
             close();        // close connection
+        }
+
+    private:
+        /** auxiliary function by printTable */
+        void printTableSep(std::vector<int> &colWidth)
+        {
+            cout << '+';
+            for (size_t j = 1; j <= colWidth.size(); j++) {
+                cout << string(colWidth[j-1] + 2, '-') << '+';
+            }
+            cout << endl;
+        }
+
+        void printTable(int nRow, int nCol, char **result)
+        {
+            std::vector<int> colWidth;   
+            int i, j, width;
+            /** 
+             * calculate the max width per column level:
+             * 
+             *  colWidth[j] =     max    {result[i*nCol + j - 1]}
+             *                 1<=i<=nRow
+             * 
+             * for j = 1, ..., nCol.
+             */
+            colWidth.resize(nCol);
+            for (j = 1; j <= nCol; j++) {
+                colWidth[j-1] = 0;
+                for (i = 0; i <= nRow; i++) {
+                    width = strlen(result[i*nCol + j - 1]);
+                    if (width > colWidth[j-1]) colWidth[j-1] = width;
+                }
+            }
+            
+            /* print line */
+            printTableSep(colWidth);
+
+            /* print column names */
+            cout << '|';
+            for (j=1; j<=nCol; j++) {
+                cout << ' ' << std::left << std::setw(colWidth[j-1]) << result[j-1] << " |";
+            }
+            cout << endl;
+
+            /* print line*/
+            printTableSep(colWidth);
+
+            /* print content */
+            for (i = 1; i <= nRow; i++) {
+                cout << '|';
+                for (j=1; j<=nCol; j++) {
+                    cout << ' ' << std::left << std::setw(colWidth[j-1]) 
+                        << result[i*nCol + j-1] << " |";
+                }
+                cout << endl;
+            }
+
+            /* print line */
+            printTableSep(colWidth);
         }
     };
 }

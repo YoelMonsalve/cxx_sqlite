@@ -1,4 +1,4 @@
-mode            = COLUMN
-separator       = "|"
-main prompt     = "tst> "
-continue prompt = "...> "
+.mode       CSV
+.header     on
+.separator  ","
+.prompt     "tst> " "...> "

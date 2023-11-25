@@ -67,6 +67,12 @@ namespace cxx_sqlite3
         exception(const char *msg) : std::runtime_error(msg) {}
     };
 
+    /** No exception */
+    struct noexception: public exception
+    {
+        noexception() : exception("no exception") {}
+    };
+    
     /** exception thrown on prepare_statement_v2() */
     struct exception_prepare: public exception
     {
@@ -121,6 +127,7 @@ namespace cxx_sqlite3
     struct const_exception
     {
         static const exception ex1;
+        static const exception no_exception;
     };    
     // TODO: more specializations ...
 }

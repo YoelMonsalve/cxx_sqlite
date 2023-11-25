@@ -156,10 +156,15 @@ int main(int argc, char** argv)
 			   );
 
 	std::cout << "STATE OF TABLE BEFORE INSERT" << std::endl; 
-	sql = "SELECT * FROM PERSON WHERE id>10;"; 
+	sql = "SELECT * FROM PERSON;"; 
 	//rc = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
-	db.prompt();
-	return 0;
+	db.command2(sql);
+	
+	/*db.prompt(
+		"-header -csv",
+		"'SELECT * FROM PERSON'"
+		" > data.txt");
+	return 0;*/
 
 	/*****************************************************
 	 *
@@ -232,12 +237,12 @@ int main(int argc, char** argv)
 	while (--N_times >= 0) {
 		++id;
 		db.execute(
-			//"INSERT INTO PERSON VALUES(:id,:name,:salary)"
-			//" ON CONFLICT(`id`) DO UPDATE SET `name`='name', `salary`='salary';"
-			"INSERT OR REPLACE INTO PERSON VALUES(:id,:name,:salary)"
+			"INSERT INTO PERSON VALUES(:id,:name,:salary)"
+			" ON CONFLICT(`id`) DO UPDATE SET `name`=:name, `salary`=:salary;"
+			//"INSERT OR REPLACE INTO PERSON VALUES(:id,:name,:salary)"
 			,{":id", ":name", ":salary"}
 			//,VAL_INT(), SQLITE3_OSTRING{"John"}, salary
-			,id, "Larry Wheels", salary
+			,id, "Larry Salinas", salary
 		);
 	}
 	db.execute("COMMIT TRANSACTION");
@@ -245,7 +250,7 @@ int main(int argc, char** argv)
 	std::cout << "STATE OF TABLE AFTER INSERT" << std::endl; 
 	sql = "SELECT * FROM PERSON;"; 
 	//rc = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
-	db.command(sql);
+	db.command2(sql);
 
 	return 0; 
 } 

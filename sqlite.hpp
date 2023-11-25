@@ -362,7 +362,7 @@ namespace cxx_sqlite3
         error_code_t bind_variadic__(vector<string>::size_type i, vector<string> col_ids, T val, Ts... vals)
         {
             error_code_t rc = bind_one(col_ids[i], val);
-            //std::cout << "OK ? " << (rc == SQLITE_OK ? 'Y' : 'N') << std::endl;
+            //std::cerr << "OK ? " << (rc == SQLITE_OK ? 'Y' : 'N') << std::endl;
             if (rc != error_code::ok) {
                 // error, throw exception here
                 return rc;
@@ -403,8 +403,6 @@ namespace cxx_sqlite3
              * on success. On other cases (SQLITE_BUSY), throw exception */
             rc = sqlite3_step(pStmt);
             if (rc != error_code::done && rc != error_code::row) {
-                std::cout << "step rc: " << rc 
-                    << ", BUSY: " << error_code::busy << std::endl;
                 throw exception_step(errmsg());
             }
             return rc;
@@ -448,23 +446,22 @@ namespace cxx_sqlite3
         void execute(const char *sql, 
             vector<string> col_ids, Ts... vals) 
         {
-            return_code_t rc;
+            return_code_t  rc;
+            exception     *e_ = nullptr;
             prepare(sql);
             bind(col_ids, vals...);
-            while (rc != error_code::done) {
-                try {
-                    rc = step();
-                    /*std::cout << "last step returned: " << rc 
-                        << ", ROW: " << error_code::row
-                        << ", DONE: " << error_code::done
-                        << std::endl;*/
-                    reset();
-                } catch (exception &e) {
-                    std::cout << "exception detected: " << e.what() << std::endl;
-                    break;
-                }
+            try {
+                rc = step();
+                reset();
+            } catch (exception &e) {
+                e_ = &e;
+                //std::cerr << "exception detected: " << e.what() << std::endl;
             }
             finalize();
+            if (e_ != nullptr) {
+                // propagate exception
+                throw e_;
+            }
         }
 
         template <class... Ts>
@@ -474,19 +471,21 @@ namespace cxx_sqlite3
 
         void execute(const char *sql) 
         {
-            return_code_t rc;
+            return_code_t  rc;
+            exception     *e_ = nullptr;
             prepare(sql);
             try {
                 rc = step();
-                /*std::cout << "last step returned: " << rc 
-                    << ", ROW: " << error_code::row
-                    << ", DONE: " << error_code::done
-                    << std::endl;*/
                 reset();
             } catch (exception &e) {
-                std::cout << "exception detected: " << e.what() << std::endl;
+                e_ = &e;
+                //std::cerr << "exception detected: " << e.what() << std::endl;
             }
             finalize();
+            if (e_ != nullptr) {
+                // propagate exception
+                throw e_;
+            }
         }
 
         inline void execute(const string &sql)
@@ -689,10 +688,12 @@ namespace cxx_sqlite3
         { return command2(sql.c_str()); }
 
         /** Opens an interactive prompt */
-        void prompt()
+        void prompt(const string &options = "", const string &query = "")
         {
             std::ostringstream cmd;
-            cmd << "sqlite3 -header -column " << filename_;
+            cmd << "sqlite3 " << options << ' ' << filename_;
+            if (query != "") cmd << ' ' << query;
+            cout << cmd.str() << endl;
             system(cmd.str().c_str());
         }
         /** Opens an interactive prompt (manual version, NOT recommended)*/

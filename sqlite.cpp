@@ -23,3 +23,4 @@ cxx_sqlite3::destructor_type cxx_sqlite3::bind_handler::bind_transient = SQLITE_
 
 /** exceptions */
 const cxx_sqlite3::exception cxx_sqlite3::const_exception::ex1 = exception("my exception 1");
+const cxx_sqlite3::exception cxx_sqlite3::const_exception::no_exception = exception("no exception");

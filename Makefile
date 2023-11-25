@@ -21,7 +21,7 @@ DFLAGS   =
 .PHONY: all pre test clean_all
 .DEFAULT_GOAL: all
 
-headers := std_version.hpp exception.hpp throwable.hpp sqlite.hpp object.hpp
+headers := std_version.hpp exception.hpp throwable.hpp sqlite.hpp functions.hpp basic_types.hpp object.hpp
 modules := sqlite.cpp
 tests   := test1
 

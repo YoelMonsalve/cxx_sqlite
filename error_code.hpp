@@ -3,7 +3,8 @@
  * 
  * -.- The cxx_sqlite3 library -.-
  * 
- * Error codes (based in the philosophy of <system_error>) for cxx_sqlite3.
+ * A model for error codes (based on the <system_error> philosophy) 
+ * for cxx_sqlite3.
  * 
  * @version 0.1.0 
  * @author  Yoel Monsalve

@@ -190,7 +190,6 @@ int main(int argc, char** argv)
 
 	rc = 0;
 	try {
-		std::error_code rc_;
 		//rc = db.step();
 		db.step(ec);
 		if (ec != error::done)  {
@@ -199,7 +198,7 @@ int main(int argc, char** argv)
 				<< endl;
 			exit(1);
 		}
-		cout << "last step returned: " << rc 
+		cout << "last step returned: " << ec.value() 
 			<< " [ROW: " << sqlite::return_code::row
 			<< ", DONE: " << sqlite::return_code::done
 			<< "]"

@@ -397,23 +397,23 @@ namespace cxx_sqlite3
         }
 
         /** statement step */
-        error_code step() const
+        ErrorCode step() const
         {
-            return_code_t rc;
+            ErrorCode ec;
             /* method is expected to return SQLITE_DONE, or SQLITE_ROW 
              * on success. On other cases (SQLITE_BUSY), throw exception */
-            rc = sqlite3_step(pStmt);
-            if (rc != return_code::done && rc != return_code::row) {
+            ec = sqlite3_step(pStmt);
+            if (ec != error::done && ec != error::row) {
                 throw exception_step(errmsg());
             }
-            return make_error_code(rc);
+            return ec;
         }
         /* second signature, based on error_code's nomenclature */
-        statement & step(std::error_code &ec) noexcept 
+        statement & step(ErrorCode &ec) noexcept 
         {
             /* method is expected to return SQLITE_DONE, or SQLITE_ROW 
              * on success. On other cases (SQLITE_BUSY), throw exception */
-            ec = make_error_code(sqlite3_step(pStmt));
+            ec = sqlite3_step(pStmt);
             return *this;
         }
 
@@ -582,10 +582,10 @@ namespace cxx_sqlite3
         }
 
         /** step */
-        std::error_code step() const 
+        ErrorCode step() const 
         { return stmt->step(); }
 
-        db & step(std::error_code &ec) noexcept 
+        db & step(ErrorCode &ec) noexcept 
         { 
             stmt->step(ec);
             return *this;

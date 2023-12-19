@@ -657,32 +657,32 @@ namespace cxx_sqlite3
         /**
          * Prints out the result of the query, in vertical format.
          */
-        return_code_t command(const char *sql)
+        ErrorCode command(const char *sql)
         {
-            return_code_t rc;
+            ErrorCode ec;
             errMsg_ = nullptr;
 
-            rc = sqlite3_exec(conn, sql, &printCallback_Vertical, (void *)nullptr, &errMsg_);
+            ec = sqlite3_exec(conn, sql, &printCallback_Vertical, (void *)nullptr, &errMsg_);
             if (errMsg_) {
                 fprintf(stderr, "error: %s\n", errMsg_);
             }
             free(errMsg_);
-            return rc;
+            return ec;
         }
-        inline return_code_t command(const string &sql)
+        inline ErrorCode command(const string &sql)
         { return command(sql.c_str()); }
 
         /**
          * Prints out the result of the query, in tabular format.
          */
-        return_code_t command2(const char *sql) 
+        ErrorCode command2(const char *sql) 
         {
-            return_code_t rc;
+            ErrorCode ec;
             char **result;
             int nRow, nCol;
             char *errMsg;
 
-            rc = sqlite3_get_table(
+            ec = sqlite3_get_table(
                 conn, sql, &result, &nRow, &nCol, &errMsg
             );
             
@@ -698,9 +698,9 @@ namespace cxx_sqlite3
                 fprintf(stderr, "error: %s\n", errMsg);
             }
 
-            return rc;
+            return ec;
         }
-        inline return_code_t command2(const string &sql)
+        inline ErrorCode command2(const string &sql)
         { return command2(sql.c_str()); }
 
         /** Opens an interactive prompt */

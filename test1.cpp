@@ -98,6 +98,7 @@ int main(int argc, char** argv)
 	char* messageError; 
 	std::string sql;
     sqlite::return_code_t rc;
+	sqlite::ErrorCode ec;
 	sqlite::db db("example.db");
 	sqlite::connection conn = db.getConnection();
 
@@ -129,8 +130,9 @@ int main(int argc, char** argv)
 	std::cout << "STATE OF TABLE BEFORE INSERT" << std::endl; 
 	sql = "SELECT * FROM PERSON;"; 
 	//rc = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
-	db.command2(sql);
-	
+	ec = db.command2(sql);
+	cout << "command2 returned: " << rc << endl;
+
 	/*db.prompt(
 		"-header -csv",
 		"'SELECT * FROM PERSON'"
@@ -189,7 +191,6 @@ int main(int argc, char** argv)
 	rc = 0;
 	try {
 		std::error_code rc_;
-		sqlite::ErrorCode ec;
 		//rc = db.step();
 		db.step(ec);
 		if (ec != error::done)  {

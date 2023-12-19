@@ -98,13 +98,16 @@ namespace cxx_sqlite3
     {
         friend std::ostream &operator<<(std::ostream &os, error_code &ec)
         {
-            return os << "error detected ["
+            return os << "error ["
 				<< ec.value() << "]: "
 				<< ec.category().name()
 				<< ": " << ec.category().message(ec.value());
         }
     public:
-        ;
+        ErrorCode() : std::error_code() {}
+        ErrorCode(return_code_t val) : std::error_code(make_error_code(val)) {}
+
+        operator return_code_t() { return value(); }
     };
 }
 namespace std 

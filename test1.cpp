@@ -49,36 +49,6 @@ public:
 	{ return msg; }
 };
 
-/** insert record into table, via prepared statement */
-typedef tuple<const char*, const char *, int , const char *, double> row_t;
-/**            ^   ^            ^             ^     ^             ^.............. salary  
- *             |   |            |             |      `........................... address
- *             |   |            |             `.................................. age
- *             |   |            `................................................ surname
- *             |   `............................................................. name
- *              `................................................................ id
- */
-void insert_row(sqlite3_stmt *stmt, row_t row) 
-{
-	int rc;
-	if (!stmt) throw sqlite3_exception("NULL stmt");
-	if ( (rc = sqlite3_bind_text(stmt, 1, std::get<0>(row), -1, SQLITE_TRANSIENT)) != SQLITE_OK ) {
-		throw sqlite3_exception(sqlite3_errstr(rc));
-	} else if ( (rc = sqlite3_bind_text(stmt, 2, std::get<1>(row), -1, SQLITE_TRANSIENT)) != SQLITE_OK ) {
-		throw sqlite3_exception(sqlite3_errstr(rc));
-	} else if ( (rc = sqlite3_bind_int(stmt, 3, std::get<2>(row))) != SQLITE_OK ) {
-		throw sqlite3_exception(sqlite3_errstr(rc));
-	} else if ( (rc = sqlite3_bind_text(stmt, 4, std::get<3>(row), -1, SQLITE_TRANSIENT)) != SQLITE_OK ) {
-		throw sqlite3_exception(sqlite3_errstr(rc));
-	} else if ( (rc = sqlite3_bind_double(stmt, 5, std::get<4>(row))) != SQLITE_OK ) {
-		throw sqlite3_exception(sqlite3_errstr(rc));
-	}
-
-	if ( (rc = sqlite3_step(stmt)) != SQLITE_DONE ) {
-		throw sqlite3_exception(sqlite3_errstr(rc));
-	}
-}
-
 /**
 SQLITE_TRANSIENT tells SQLite to copy your string. Use this when your string('s buffer) is going to go away before the query is executed.
 
@@ -100,6 +70,7 @@ using std::tuple;
 // convenience macros and typedef's
 #define sqlite cxx_sqlite3
 using error_code_t = sqlite::error_code_t;
+using sqlite::error;
 
 int main(int argc, char** argv) 
 { 
@@ -178,7 +149,7 @@ int main(int argc, char** argv)
 		&stmt,
 		NULL
 	);
-	if (rc != sqlite::error_code::ok) {
+	if (rc != sqlite::return_code::ok) {
 		std::cerr << "sqlite3_prepare_v2: " << sqlite3_errmsg(conn) << std::endl; 
 		throw sqlite::exception_prepare(sqlite3_errmsg(conn));
 	}
@@ -210,26 +181,36 @@ int main(int argc, char** argv)
 	SQLITE3_OINT VAL_INT = val;
 	double salary = 300.22;
 	
-	#if 0
-	db.prepare("INSERT INTO PERSON VALUES(:id,:name,:salary);")
+	#if 1
+	db.prepare("INSERT INTO PERSON(`id`,`name`,`salary`) VALUES(:id,:name,:salary);")
 	  .bind({":id", ":name", ":salary"}, 
 	        VAL_INT(), SQLITE3_OSTRING{"John"}, salary);
 
 	rc = 0;
-	while (rc != sqlite::error_code::done) {
-		try {
-			rc = db.step();
-			cout << "last step returned: " << rc 
-				<< "ROW: " << sqlite::error_code::row
-				<< "DONE: " << sqlite::error_code::done
+	try {
+		std::error_code rc_;
+		sqlite::ErrorCode ec;
+		//rc = db.step();
+		db.step(ec);
+		if (ec != error::done)  {
+			cout << ec
+				<< ": " << db.errmsg()
 				<< endl;
-			db.reset();
-		} catch (sqlite::exception &e) {
-			cout << "exception detected: " << e.what() << endl;
+			exit(1);
 		}
+		cout << "last step returned: " << rc 
+			<< " [ROW: " << sqlite::return_code::row
+			<< ", DONE: " << sqlite::return_code::done
+			<< "]"
+			<< endl;
+		db.reset();
+	} catch (sqlite::exception &e) {
+		cout << "exception detected: " << e.what() << endl;
+		exit(1);
 	}
 	db.finalize();
 	#endif
+	return 0;
 	int N_times = 5;
 	int id = 0;
 	db.execute("BEGIN TRANSACTION");

@@ -19,7 +19,7 @@
 #include <vector>
 #include <string>
 
-#include "std_version.hpp"
+#include "cpp_version.hpp"
 
 namespace cxx_sqlite3
 {

@@ -21,43 +21,8 @@
 #include <string>
 #include <sqlite3.h>
 
-#include "std_version.hpp"
-
-namespace cxx_sqlite3
-{
-    /** error codes */
-    typedef int error_code_t;
-    enum error_code : error_code_t {
-        ok         = SQLITE_OK        ,
-        row        = SQLITE_ROW       ,
-        done       = SQLITE_DONE      ,
-        error      = SQLITE_ERROR     ,
-        internal   = SQLITE_INTERNAL  ,
-        perm       = SQLITE_PERM      ,
-        abort      = SQLITE_ABORT     ,
-        busy       = SQLITE_BUSY      ,
-        locked     = SQLITE_LOCKED    ,
-        misuse     = SQLITE_MISUSE    ,
-        // ...
-    };
-    using return_code_t = error_code_t;
-
-    // another approach ... (thoughts ?)
-    struct error_code2 {
-        using value_type                   = error_code_t;
-
-        static const value_type ok         = SQLITE_OK        ;
-        static const value_type row        = SQLITE_ROW       ;
-        static const value_type done       = SQLITE_DONE      ;
-        static const value_type error      = SQLITE_ERROR     ;
-        static const value_type internal   = SQLITE_INTERNAL  ;
-        static const value_type perm       = SQLITE_PERM      ;
-        static const value_type abort      = SQLITE_ABORT     ;
-        static const value_type busy       = SQLITE_BUSY      ;
-        static const value_type locked     = SQLITE_LOCKED    ;
-    };
-
-}
+#include "cpp_version.hpp"
+#include "error_code.hpp"
 
 namespace cxx_sqlite3
 {

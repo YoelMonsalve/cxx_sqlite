@@ -14,8 +14,8 @@
  * @date   2023-11-11
  */
 
-#ifndef STD_VERSION_H__
-#define STD_VERSION_H_
+#ifndef CPP_VERSION_H__
+#define CPP_VERSION_H_
 
 // macro to determine the C++ standard-compliant version
 #if ((defined(_MSVC_LANG) && _MSVC_LANG >= 202101L) || __cplusplus >= 202101L)

@@ -24,3 +24,46 @@ cxx_sqlite3::destructor_type cxx_sqlite3::bind_handler::bind_transient = SQLITE_
 /** exceptions */
 const cxx_sqlite3::exception cxx_sqlite3::const_exception::ex1 = exception("my exception 1");
 const cxx_sqlite3::exception cxx_sqlite3::const_exception::no_exception = exception("no exception");
+
+/** error_category implementation */
+const std::error_category &error_category_inst() noexcept {
+    static const cxx_sqlite3::error_category ecat{};
+    return ecat;
+}
+namespace cxx_sqlite3
+{
+    /** construct an error_code and error_condition from enumerators */
+    
+    /* error code from error code enumerator */
+    std::error_code make_error_code(error ev) noexcept 
+    {
+        return std::error_code(
+            static_cast<int>(ev),
+            error_category_inst()
+        );
+    }
+    /* error code from primitive type error_code_t */
+    std::error_code make_error_code(error_code_t ev) noexcept 
+    {
+        return std::error_code(
+            static_cast<int>(ev),
+            error_category_inst()
+        );
+    }
+    /* error condition from error code enumerator */
+    std::error_condition make_error_condition(error ev) noexcept 
+    {
+        return std::error_condition(
+            static_cast<int>(ev),
+            error_category_inst()
+        );
+    }
+    /* error condition from primitive type error_code_t */
+    std::error_condition make_error_condition(error_code_t ev) noexcept 
+    {
+        return std::error_condition(
+            static_cast<int>(ev),
+            error_category_inst()
+        );
+    }
+}

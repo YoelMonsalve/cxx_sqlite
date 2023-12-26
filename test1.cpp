@@ -129,9 +129,16 @@ int main(int argc, char** argv)
 
 	std::cout << "STATE OF TABLE BEFORE INSERT" << std::endl; 
 	sql = "SELECT * FROM PERSON;"; 
-	//rc = sqlite3_exec(conn, sql.c_str(), callback, (void *)"", NULL); 
 	ec = db.command2(sql);
-	cout << "command2 returned: " << rc << endl;
+	//cout << "command2 returned: " << rc << endl;
+	
+	#if 0
+	db.getStatement()->query(sql.c_str(), ec);
+	cout << "query returned: " << ec << endl;
+	cout << "errmsg: " << db.getStatement()->errmsg() << endl;
+	
+	//return 0;
+	#endif
 
 	/*db.prompt(
 		"-header -csv",
@@ -185,8 +192,10 @@ int main(int argc, char** argv)
 	
 	#if 1
 	db.prepare("INSERT INTO PERSON(`id`,`name`,`salary`) VALUES(:id,:name,:salary);")
-	  .bind({":id", ":name", ":salary"}, 
-	        VAL_INT(), SQLITE3_OSTRING{"John"}, salary);
+	  	.bind({":id"}, VAL_INT())
+	  	.bind({":name", ":salary"}, 
+	        SQLITE3_OSTRING{"John"}, salary);
+	cout << ec << endl;
 
 	rc = 0;
 	try {
@@ -208,7 +217,6 @@ int main(int argc, char** argv)
 		cout << "exception detected: " << e.what() << endl;
 		exit(1);
 	}
-	db.finalize();
 	#endif
 	return 0;
 	int N_times = 5;

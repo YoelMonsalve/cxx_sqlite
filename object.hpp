@@ -72,6 +72,12 @@ struct generic_object    // base class
         OCHAR.nullpdata();    // nullify internal pointer of stolen object
     }
     #endif
+
+    using default_type = char;
+
+    /* virtual function, for convenience */
+    virtual void getvalue(void *ptr) { }
+
 protected:
     void *pdata = nullptr;    // hidden data
 };
@@ -144,12 +150,17 @@ struct basic_object : public generic_object
         return *this;
     }
 
-    /* explicitely accessing the value (it is the same as (value_type)basic_object) */
+    /* explicitly accessing the value (it is the same as (value_type)basic_object) */
     value_type value() const noexcept { return data_value__; }
     value_type operator()() const noexcept { return data_value__; }
 
     /* static cast to value_type */
     operator value_type() const noexcept { return *(value_type *)pdata; }
+
+    /* overriding the virtual version */
+    virtual void getvalue(void *ptr) { 
+        *(T *)ptr = *(T *)pdata;
+    }
 
     /* not operator */
     bool operator!() { return !(this->value()); }

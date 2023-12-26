@@ -32,7 +32,7 @@ const std::error_category &error_category_inst() noexcept {
 }
 namespace cxx_sqlite3
 {
-    /** construct an error_code and error_condition from enumerators */
+    /** construct error_code and error_condition from enumerators */
     
     /* error code from error code enumerator */
     std::error_code make_error_code(error ev) noexcept 
@@ -66,4 +66,10 @@ namespace cxx_sqlite3
             error_category_inst()
         );
     }
+
+    /** comparison between numeric types and ErrorCode */
+    bool operator==(const return_code_t rc, const ErrorCode &ec) 
+    { return rc == ec.value(); }
+    bool operator!=(const return_code_t rc, const ErrorCode &ec) 
+    { return rc != ec.value(); }
 }

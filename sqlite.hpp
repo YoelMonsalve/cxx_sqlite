@@ -45,6 +45,9 @@ using std::endl;
 using std::string;
 using std::vector;
 
+#define PRINT_DEBUG_LINE__ std::cerr << "on `" << __FILE__ \
+<< ":" << __LINE__ << "': ";
+
 namespace cxx_sqlite3
 {
     /** 
@@ -99,7 +102,7 @@ namespace cxx_sqlite3
         sqlite3      *conn_  = nullptr;      /* sqlite3 DB connection */
         const char   *pzTail = nullptr;      /* pointer to unused portion */
         sqlite3_stmt *pStmt  = nullptr;      /* underlying sqlite3 primitive statement */
-        error_code_t  rc_ = return_code::ok;  /* return code of the last operation */
+        return_code_t rc_    = return_code::ok;  /* return code of the last operation */
 
     public:
         /** constructor */
@@ -118,15 +121,18 @@ namespace cxx_sqlite3
         /** getter (access) methods */
         sqlite3_stmt *getStmt() const { return pStmt; }
 
-        /** overloading operator() to the more recent return code */
-        error_code_t operator()() const { return rc_; }
-        error_code_t rc() const { return rc_; }
+        /** get the more recent return code */
+        //return_code_t operator()() const { return rc_; }
+        return_code_t rc() const { return rc_; }
+
+        /** get the ErrorCode yielded by the last operation */
+        ErrorCode errorCode() const { return ErrorCode(rc_); }
 
         /** 
          * prepare statement 
          * https://www.sqlite.org/c3ref/prepare.html 
          */
-        statement &prepare(const char *zSql, int nByte = -1)
+        return_code_t prepare(const char *zSql, int nByte = -1)
         {
             rc_ = sqlite3_prepare_v2(
                 conn_,
@@ -138,7 +144,25 @@ namespace cxx_sqlite3
             if (rc_ != return_code::ok) {
 		        throw exception_prepare(errmsg());
 	        }
-            return *this;
+            return rc_;
+        }
+        /** c++ string version, throws exception */
+        return_code_t prepare(const string sql)
+        {
+            return prepare(sql.c_str());
+        }
+        /** c++ string version, with ErrorCode */
+        statement &prepare(const string sql, ErrorCode &ec) noexcept
+        {
+            rc_ = sqlite3_prepare_v2(
+                conn_,
+                sql.c_str(),
+                -1,
+                &pStmt,
+                &pzTail
+            );
+            ec  = ErrorCode(rc_);
+            return *this;    // returns self-reference
         }
 
         const char *errmsg() const 
@@ -168,8 +192,8 @@ namespace cxx_sqlite3
         int sqlite3_bind_zeroblob64(sqlite3_stmt*, int, sqlite3_uint64);
         */
 
-        error_code_t bind_int(col_index_t iCol, int val) { 
-            error_code_t rc;
+        return_code_t bind_int(col_index_t iCol, int val) { 
+            return_code_t rc;
 
             // Method 2
             TRY_OR_THROW__ (sqlite3_bind_int, (pStmt, iCol, val), 
@@ -178,8 +202,8 @@ namespace cxx_sqlite3
             
             return rc;
         }
-        error_code_t bind_int_64( col_index_t iCol, int64_t val) { 
-            error_code_t rc;
+        return_code_t bind_int_64( col_index_t iCol, int64_t val) { 
+            return_code_t rc;
 
             TRY_OR_THROW__ (sqlite3_bind_int64, (pStmt, iCol, val), 
                 rc, return_code::ok, exception_bind(errmsg())
@@ -187,8 +211,8 @@ namespace cxx_sqlite3
             
             return rc;
         }
-        error_code_t bind_double(col_index_t iCol, double val) { 
-            error_code_t rc;
+        return_code_t bind_double(col_index_t iCol, double val) { 
+            return_code_t rc;
 
             TRY_OR_THROW__ (sqlite3_bind_double, (pStmt, iCol, val), 
                 rc, return_code::ok, exception_bind(errmsg())
@@ -196,8 +220,8 @@ namespace cxx_sqlite3
             
             return rc;
         }
-        error_code_t bind_text(col_index_t iCol, const char *text, int len = -1, destructor_type hdl = bind_handler::bind_transient) { 
-            error_code_t rc;
+        return_code_t bind_text(col_index_t iCol, const char *text, int len = -1, destructor_type hdl = bind_handler::bind_transient) { 
+            return_code_t rc;
 
             TRY_OR_THROW__ (sqlite3_bind_text, (pStmt, iCol, text, len, hdl), 
                 rc, return_code::ok, exception_bind(errmsg())
@@ -205,8 +229,8 @@ namespace cxx_sqlite3
             
             return rc;
         }
-        error_code_t bind_text64(col_index_t iCol, const char *text, uint64 len = -1, destructor_type hdl = bind_handler::bind_transient, unsigned char encoding_ =  encoding::utf8) { 
-            error_code_t rc;
+        return_code_t bind_text64(col_index_t iCol, const char *text, uint64 len = -1, destructor_type hdl = bind_handler::bind_transient, unsigned char encoding_ =  encoding::utf8) { 
+            return_code_t rc;
 
             TRY_OR_THROW__ (sqlite3_bind_text64,(pStmt, iCol, text, len, hdl, encoding_), 
                 rc, return_code::ok, exception_bind(errmsg())
@@ -214,8 +238,8 @@ namespace cxx_sqlite3
             
             return rc;
         }
-        error_code_t bind_blob(col_index_t iCol, const void *blob, int len = -1, destructor_type hdl = bind_handler::bind_transient) { 
-            error_code_t rc;
+        return_code_t bind_blob(col_index_t iCol, const void *blob, int len = -1, destructor_type hdl = bind_handler::bind_transient) { 
+            return_code_t rc;
 
             TRY_OR_THROW__ (sqlite3_bind_blob, (pStmt, iCol, blob, len, hdl), 
                 rc, return_code::ok, exception_bind(errmsg())
@@ -223,8 +247,8 @@ namespace cxx_sqlite3
             
             return rc;
         }
-        error_code_t bind_blob64(col_index_t iCol, const void *blob, uint64 len = -1, destructor_type hdl = bind_handler::bind_transient) { 
-            error_code_t rc;
+        return_code_t bind_blob64(col_index_t iCol, const void *blob, uint64 len = -1, destructor_type hdl = bind_handler::bind_transient) { 
+            return_code_t rc;
 
             TRY_OR_THROW__ (sqlite3_bind_blob64, (pStmt, iCol, blob, len, hdl), 
                 rc, return_code::ok, exception_bind(errmsg())
@@ -232,8 +256,8 @@ namespace cxx_sqlite3
             
             return rc;
         }
-        error_code_t bind_null(col_index_t iCol) { 
-            error_code_t rc;
+        return_code_t bind_null(col_index_t iCol) { 
+            return_code_t rc;
 
             TRY_OR_THROW__ (sqlite3_bind_null, (pStmt, iCol), 
                 rc, return_code::ok, exception_bind(errmsg())
@@ -258,11 +282,11 @@ namespace cxx_sqlite3
 
             if ((col_name = sqlite3_column_name(pStmt, iCol)) == nullptr) 
                 throw exception_bind(errmsg());
-            
+
             return col_name;
         }
-        error_code_t colum_bytes(stmt *pstmt, col_index_t iCol) {
-            error_code_t rc;
+        return_code_t colum_bytes(stmt *pstmt, col_index_t iCol) {
+            return_code_t rc;
 
             TRY_OR_THROW__ (sqlite3_column_bytes, (pStmt, iCol),
                 rc, return_code::ok, exception_column(errmsg())
@@ -270,8 +294,8 @@ namespace cxx_sqlite3
             
             return rc;
         }
-        error_code_t colum_type(stmt *pstmt, col_index_t iCol) {
-            error_code_t rc;
+        return_code_t colum_type(stmt *pstmt, col_index_t iCol) {
+            return_code_t rc;
 
             TRY_OR_THROW__ (sqlite3_column_type, (pStmt, iCol), 
                 rc, return_code::ok, exception_column(errmsg())
@@ -281,7 +305,7 @@ namespace cxx_sqlite3
         }
 
         /* int */
-        error_code_t bind_one(string col_id, int val)
+        return_code_t bind_one(string col_id, int val)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind INT\n";
@@ -289,7 +313,7 @@ namespace cxx_sqlite3
             return bind_int(iCol, val);
         }
         /* int64 */
-        error_code_t bind_one(string col_id, int64_t val)
+        return_code_t bind_one(string col_id, int64_t val)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind INT64\n";
@@ -297,7 +321,7 @@ namespace cxx_sqlite3
             return bind_int_64(iCol, val);
         }
         /* double */
-        error_code_t bind_one(string col_id, double val)
+        return_code_t bind_one(string col_id, double val)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind DOUBLE\n";
@@ -305,7 +329,7 @@ namespace cxx_sqlite3
             return bind_double(iCol, val);
         }
         /* const string */
-        error_code_t bind_one(string col_id, const string &val, destructor_type hdl = bind_handler::bind_transient)
+        return_code_t bind_one(string col_id, const string &val, destructor_type hdl = bind_handler::bind_transient)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind const string &\n";
@@ -313,7 +337,7 @@ namespace cxx_sqlite3
             return bind_text(iCol, val.c_str(), val.size(), hdl);
         }
         /* const string (64) */
-        error_code_t bind_one(string col_id, const string &val, destructor_type hdl, encoding encoding_)
+        return_code_t bind_one(string col_id, const string &val, destructor_type hdl, encoding encoding_)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind const string & (64)\n";
@@ -322,7 +346,7 @@ namespace cxx_sqlite3
             return bind_text64(iCol, val.c_str(), val.size(), hdl, encoding_);
         }
         /* blob(const void *) - Warning: very dangerous! */
-        error_code_t bind_one(string col_id, const void * val, uint64 n, destructor_type hdl = bind_handler::bind_transient)
+        return_code_t bind_one(string col_id, const void * val, uint64 n, destructor_type hdl = bind_handler::bind_transient)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind blob (64)\n";
@@ -330,7 +354,7 @@ namespace cxx_sqlite3
             return bind_blob64(iCol, val, n, hdl);
         }
         /* null value */
-        error_code_t bind_one(string col_id)
+        return_code_t bind_one(string col_id)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind NULL \n";
@@ -345,7 +369,7 @@ namespace cxx_sqlite3
          *   db.bind_one(stmt, std::pair<string, string>{":name", "John"})
          */
         template <class ColIdType, class ColValType>
-        error_code_t bind_one(std::pair<ColIdType, ColValType> pair_)
+        return_code_t bind_one(std::pair<ColIdType, ColValType> pair_)
         {   
             return bind_one(pStmt, pair_.first, pair_.second);
         }
@@ -353,56 +377,68 @@ namespace cxx_sqlite3
         /**
          * This variadic method allows to pass several values at once.
         */
-        error_code_t bind_variadic__(vector<string>::size_type i, vector<string> col_ids)
+        ErrorCode bind_variadic__(vector<string>::size_type i, vector<string> col_ids)
         { 
             // we reached the end of processing
-            return return_code::ok; 
+            return error::ok; 
+        }
+        statement & bind_variadic__(vector<string>::size_type i, vector<string> col_ids, ErrorCode &ec)
+        { 
+            // we reached the end of processing
+            return *this; 
         }
         // ________________ recursive case
         template <class T, class... Ts>
-        error_code_t bind_variadic__(vector<string>::size_type i, vector<string> col_ids, T val, Ts... vals)
+        ErrorCode bind_variadic__(vector<string>::size_type i, vector<string> col_ids, T val, Ts... vals)
         {
-            error_code_t rc = bind_one(col_ids[i], val);
-            //std::cerr << "OK ? " << (rc == SQLITE_OK ? 'Y' : 'N') << std::endl;
-            if (rc != return_code::ok) {
+            return_code_t rc = bind_one(col_ids[i], val);
+            if (rc != (int)error::ok) {
                 // error, throw exception here
-                return rc;
+                throw exception_bind(errmsg());
             }
             if (i < col_ids.size())
                 return bind_variadic__(i + 1, col_ids, vals...);
             else
-                return rc;
+                return rc;    // <-- make an error_code from
         }
-        // main bind method
+        // generic bind method
         template <class T, class... Ts>
-        error_code_t bind(vector<string> col_ids, T val, Ts... vals)
+        ErrorCode bind(vector<string> col_ids, T val, Ts... vals)
         {
             return bind_variadic__(0, col_ids, val, vals...);
         }
+        template <class T>
+        statement & bind(string col_id, T val, ErrorCode &ec) noexcept
+        {
+            return_code_t rc = bind_one(col_id, val);
+            ec = ErrorCode(rc);
+            return *this;
+        }
 
+        // TODO ........
         typedef vector<generic_object> generic_col_vals;
         template <class T>
-        error_code_t bind(vector<string> col_ids, generic_col_vals vals)
+        return_code_t bind(vector<string> col_ids, generic_col_vals vals)
         {
-            error_code_t rc;
+            return_code_t rc;
             for (vector<string>::size_type i = 0; i < col_ids.size(); i++) {
                 // TODO ........ (!)
                 //rc = bind_one(pStmt, col_ids[i], vals[i]);
-                if (rc != return_code::ok) {
+                if (rc != (int)(error::ok)) {
                     // should throw an exception
                     return rc;
                 }
             }
-            return return_code::ok;
+            return (int)error::ok;
         }
 
-        /** statement step */
-        ErrorCode step() const
+        /** statement step - C style */
+        ErrorCode step() const 
         {
             ErrorCode ec;
             /* method is expected to return SQLITE_DONE, or SQLITE_ROW 
              * on success. On other cases (SQLITE_BUSY), throw exception */
-            ec = sqlite3_step(pStmt);
+            step(ec);
             if (ec != error::done && ec != error::row) {
                 throw exception_step(errmsg());
             }
@@ -411,16 +447,21 @@ namespace cxx_sqlite3
         /* second signature, based on error_code's nomenclature */
         statement & step(ErrorCode &ec) noexcept 
         {
-            /* method is expected to return SQLITE_DONE, or SQLITE_ROW 
-             * on success. On other cases (SQLITE_BUSY), throw exception */
+            /* this is the nothrow, `error_code` based version */
+            ec = sqlite3_step(pStmt);
+            return *this;
+        }
+        const statement & step(ErrorCode &ec) const noexcept 
+        {
+            /* this is the nothrow, `error_code` based version */
             ec = sqlite3_step(pStmt);
             return *this;
         }
 
         /** statement reset */
-        error_code_t reset() const
+        return_code_t reset() const
         {
-            error_code_t rc;
+            return_code_t rc;
             /* method is expected to only return SQLITE_OK on success.
              * Otherwise, throw exception */
             rc = sqlite3_reset(pStmt);
@@ -434,19 +475,53 @@ namespace cxx_sqlite3
          * statement finalize 
          * https://www.sqlite.org/c3ref/finalize.html
          * */
-        error_code_t finalize() noexcept
+        return_code_t finalize() noexcept
         {
-            error_code_t rc;
+            return_code_t rc;
             /* If the most recent evaluation of the statement encountered 
              * no errors or if the statement is never been evaluated, 
              * then sqlite3_finalize() returns SQLITE_OK. 
-             * If the most recent evaluation of statement S failed, 
+             * If the most recent evaluation of statement `S` failed, 
              * then sqlite3_finalize(S) returns the appropriate error code 
              * or extended error code. */
-            rc = sqlite3_finalize(pStmt);
-            pStmt = nullptr;
+            if (pStmt != nullptr)
+            {
+                rc = sqlite3_finalize(pStmt);
+                pStmt = nullptr;
+            }
             return rc;
         }
+
+        /**
+         * Submit a query for execution. This is similar to `mysqli::query()` method
+         * of the PHP MySQLi library (https://www.php.net/manual/en/mysqli.query.php).
+         * Version with arguments.
+         */
+        template <class... Ts>
+        ErrorCode query(const string sql, 
+            vector<string> col_ids, Ts... vals)
+        {
+            ErrorCode ec;
+            rc = prepare(sql);
+            rc = bind(col_ids, vals...);
+            return ErrorCode(rc);
+        }
+        /** Version with no arguments. */
+        ErrorCode query(const string sql)
+        {
+            prepare(sql);
+            return errorCode();
+        }
+        statement & query(const string sql, ErrorCode &ec) noexcept
+        {
+            prepare(sql, ec);
+            return *this;
+        }
+
+        /**
+         * Fetch the next row of the result set
+         */
+
 
         /**
          * wrapper for execute: prepare + step + reset + finalize
@@ -455,12 +530,12 @@ namespace cxx_sqlite3
         void execute(const char *sql, 
             vector<string> col_ids, Ts... vals) 
         {
-            return_code_t  rc;
             exception     *e_ = nullptr;
-            prepare(sql);
-            bind(col_ids, vals...);
             try {
-                rc = step().value();    // value() of error_code
+                /* discarding return values, just throw exception, if any */
+                prepare(sql);
+                bind(col_ids, vals...);
+                step();
                 reset();
             } catch (exception &e) {
                 e_ = &e;
@@ -472,19 +547,21 @@ namespace cxx_sqlite3
                 throw e_;
             }
         }
-
+        /** C++ string version, bind arguments */
         template <class... Ts>
         void execute(const string &sql, 
             vector<string> col_ids, Ts... vals)
         { execute(sql.c_str(), col_ids, vals...); }
 
+        /** C const char * version, no arguments */
         void execute(const char *sql) 
         {
             return_code_t  rc;
             exception     *e_ = nullptr;
-            prepare(sql);
             try {
-                rc = step().value();    // value() of error_code
+                /* discarding return values, just throw exception, if any */
+                prepare(sql);
+                step();
                 reset();
             } catch (exception &e) {
                 e_ = &e;
@@ -496,9 +573,9 @@ namespace cxx_sqlite3
                 throw e_;
             }
         }
-
+        /** C++ string version, no arguments */
         inline void execute(const string &sql)
-        { execute(sql.c_str()); }
+        { execute(sql.c_str()); }        
     };
 
     /** Main class */
@@ -555,7 +632,7 @@ namespace cxx_sqlite3
         /** message associated to the more recent error */
         const char * errmsg() const noexcept
         {
-            return sqlite3_errmsg(conn);
+            return stmt->errmsg();
         }
 
         /** prepare internal statement */
@@ -597,9 +674,14 @@ namespace cxx_sqlite3
         /** close actual connection */
         return_code_t close()
         {
-            return_code_t rc = sqlite3_close(conn);
+            return_code_t rc;
+            // finalize any unfinalized statements
+            stmt_finalize();
+            // close current connection
+            rc = sqlite3_close(conn);
             if (rc != return_code::ok) {
-                throw exception_close(errmsg());
+                PRINT_DEBUG_LINE__
+                throw exception_close(sqlite3_errstr(rc));
             } else {
                 //sqlite3_free(conn);    // apparently, sqlite3_close()
                                          // actually frees the sqlite3* pointer
@@ -610,7 +692,14 @@ namespace cxx_sqlite3
         }
 
         /** finalize internal statement */
-        void finalize() { delete stmt; }
+        void stmt_finalize() 
+        { 
+            if (stmt != nullptr)
+            {
+                delete stmt; 
+                stmt = nullptr;
+            }
+        }
 
         /** 
          * Get direct access to the internal connection object .
@@ -747,7 +836,6 @@ namespace cxx_sqlite3
         /** destructor */
         ~db() {
             std::cout << "db::~db() called\n";
-            //finalize();     // finalize internal statement
             close();        // close connection
         }
 

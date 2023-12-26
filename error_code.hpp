@@ -105,12 +105,19 @@ namespace cxx_sqlite3
 				<< ": " << ec.category().message(ec.value());
         }
     public:
+        // empty constructor
         ErrorCode() : std::error_code() {}
+        // ErrorCode from raw numeric type `return_code_t`
         ErrorCode(return_code_t val) : std::error_code(make_error_code(val)) {}
+        // ErrorCode from enumerator
+        ErrorCode(error ev) : std::error_code(make_error_code(ev)) {}
 
+        /* allowing to implicitely cast ErrorCode to return_code_t */
         operator return_code_t() { return value(); }
+        return_code_t operator()() { return value(); }
     };
 }
+
 namespace std 
 {
     /** 

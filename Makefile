@@ -30,7 +30,7 @@ all: test
 test: $(tests)
 
 tests_obj := $(addsuffix .o,$(tests))
-obj      := sqlite.o
+obj       := sqlite.o
 
 tell:
 	@echo $(tests_obj)
@@ -41,9 +41,12 @@ $(filter %.o,$(tests_obj)): %.o: %.cpp $(modules) $(headers)
 $(filter %.o,$(obj)): %.o: %.cpp $(modules) $(headers)
 	$(CXX) -o $@ -c $< $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(DFLAGS)
 
-test%: test%.o $(obj)
+#test%: test%.o $(obj)
+#	$(CXX) -o $@ $@.o $(obj) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(DFLAGS)
+
+%: %.o $(obj)
 	$(CXX) -o $@ $@.o $(obj) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(DFLAGS)
 
 clean:
 	-rm *.o
-	-rm $(tests)
+	-rm $(tests)	

@@ -152,7 +152,6 @@ using std::endl;
 
 void read_int(OGEN I)
 {
-    cout << "read_float: " << (SQLITE3_OFLOAT)I << endl;
     cout << "read_int: " << (SQLITE3_OINT)I << endl;
 }
 
@@ -164,6 +163,10 @@ void fn() { cout << "fn()" << endl; }
 
 template<class T>
 struct ftor;
+/**
+{
+    void operator()(T x) { cout << "ftor<T>: x = " << x << endl; }
+};*/
 
 template <>
 struct ftor<int> { 
@@ -176,11 +179,11 @@ struct ftor<float> {
 
 int main()
 {
-    ftor<int> f1;
+    /**ftor<int> f1;
     f1(3);
     ftor<float>()(3.5f);
     ftor<float>{}(-3.5f);
-    exit(0);
+    exit(0);*/
     
     OINT I1{3+4};
     cout << "I1 (from rvalue): " << I1 << endl;
@@ -200,7 +203,7 @@ int main()
 
     /** 
      * Is it ever possible to upcast a basic_object to generic_object,
-     * and still being able to recovery the original basic_object
+     * and still to be able to recovery the original basic_object
     */
     read_int(I1);
     exit(0);

@@ -33,13 +33,14 @@ namespace cxx_sqlite3
     using std::tuple;
     
     /** symbolic constants for sqlite3 native data types */
-    enum data_type : int {
-        type_int    = SQLITE_INTEGER,
-        type_float  = SQLITE_FLOAT,
-        type_double = SQLITE_FLOAT,
-        type_text   = SQLITE_TEXT,
-        type_blob   = SQLITE_BLOB,
-        type_null   = SQLITE_NULL,
+    typedef int data_type_t;
+    enum data_type : data_type_t {
+        int_t    = SQLITE_INTEGER,
+        float_t  = SQLITE_FLOAT,
+        double_t = SQLITE_FLOAT,
+        text_t   = SQLITE_TEXT,
+        blob_t   = SQLITE_BLOB,
+        null_t   = SQLITE_NULL,
     };
 
     /** importing sqlite3 native objects and types to this space */

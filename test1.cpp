@@ -72,6 +72,16 @@ using std::tuple;
 using error_code_t = sqlite::error_code_t;
 using sqlite::error;
 
+/* CREATE TABLES
+CREATE TABLE PERSON(id       INTEGER PRIMARY KEY NOT NULL,name     TEXT,salary   FLOAT NOT NULL, created_at TEST DEFAULT CURRENT_TIMESTAMP);
+sqlite> ALTER TABLE person ADD COLUMN modified_at TEXT DEFAULT NULL;
+sqlite> .schema person
+CREATE TABLE PERSON(id       INTEGER PRIMARY KEY NOT NULL,name     TEXT,salary   FLOAT NOT NULL, created_at TEST DEFAULT CURRENT_TIMESTAMP, modified_at TEXT DEFAULT NULL);
+sqlite> CREATE TRIGGER person_modified_at AFTER UPDATE ON person FOR EACH ROW WHEN new.name<>old.name OR new.salary<>old.salary BEGIN INSERT INTO "person_log"(person_id,modified_at) VALUES(old.id, datetime('now','utc')); END;
+sqlite> .schema person_log
+CREATE TABLE IF NOT EXISTS "person_log"(person_id INTEGER NOT NULL, modified_at TEXT, PRIMARY KEY(person_id,modified_at));
+*/
+
 int main(int argc, char** argv) 
 { 
    	/*throw MyException("This is a custom exception");
@@ -121,23 +131,27 @@ int main(int argc, char** argv)
 	return 0;
 	#endif
 
-	db.execute("CREATE TABLE IF NOT EXISTS PERSON("
+	db.execute("CREATE TABLE IF NOT EXISTS person("
 				"id       INTEGER PRIMARY KEY NOT NULL,"
 				"name     TEXT,"
-				"salary   REAL NOT NULL);"
+				"salary   FLOAT NOT NULL);"
 			   );
 
 	std::cout << "STATE OF TABLE BEFORE INSERT" << std::endl; 
-	sql = "SELECT * FROM PERSON;"; 
+	sql = "SELECT id,name,salary,`created_at` FROM PERSON;"; 
 	ec = db.command2(sql);
 	//cout << "command2 returned: " << rc << endl;
 	
-	#if 0
-	db.getStatement()->query(sql.c_str(), ec);
+	#if 1
+	ec = db.getStatement()->query(sql.c_str());
 	cout << "query returned: " << ec << endl;
 	cout << "errmsg: " << db.getStatement()->errmsg() << endl;
+
+	db.getStatement()->fetch_row(ec);
+	cout << "fetch_row returned: " << ec << endl;
+	db.getStatement()->finalize();
 	
-	//return 0;
+	return 1;
 	#endif
 
 	/*db.prompt(
@@ -217,8 +231,9 @@ int main(int argc, char** argv)
 		cout << "exception detected: " << e.what() << endl;
 		exit(1);
 	}
-	#endif
+	db.close();
 	return 0;
+	#endif
 	int N_times = 5;
 	int id = 0;
 	db.execute("BEGIN TRANSACTION");

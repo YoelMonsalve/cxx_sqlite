@@ -46,7 +46,7 @@ using std::string;
 using std::vector;
 
 #define PRINT_DEBUG_LINE__ std::cerr << "on `" << __FILE__ \
-<< ":" << __LINE__ << "': ";
+<< ":" << __LINE__ + 1 << "': ";
 
 namespace cxx_sqlite3
 {
@@ -277,6 +277,10 @@ namespace cxx_sqlite3
         }
 
         /** return values */
+        col_index_t colum_count(stmt *pstmt) noexcept 
+        {
+            return sqlite3_column_count(pStmt);
+        }
         const char *column_name(stmt *pstmt, col_index_t iCol) {
             const char *col_name;
 
@@ -285,23 +289,15 @@ namespace cxx_sqlite3
 
             return col_name;
         }
-        return_code_t colum_bytes(stmt *pstmt, col_index_t iCol) {
+        int colum_bytes(stmt *pstmt, col_index_t iCol) {
             return_code_t rc;
 
-            TRY_OR_THROW__ (sqlite3_column_bytes, (pStmt, iCol),
-                rc, return_code::ok, exception_column(errmsg())
-            ); 
-            
-            return rc;
+            return sqlite3_column_bytes(pStmt, iCol);
         }
-        return_code_t colum_type(stmt *pstmt, col_index_t iCol) {
+        int column_type(stmt *pstmt, col_index_t iCol) {
             return_code_t rc;
 
-            TRY_OR_THROW__ (sqlite3_column_type, (pStmt, iCol), 
-                rc, return_code::ok, exception_column(errmsg())
-            ); 
-            
-            return rc;
+            return sqlite3_column_type(pStmt, iCol);
         }
 
         /* int */
@@ -382,11 +378,6 @@ namespace cxx_sqlite3
             // we reached the end of processing
             return error::ok; 
         }
-        statement & bind_variadic__(vector<string>::size_type i, vector<string> col_ids, ErrorCode &ec)
-        { 
-            // we reached the end of processing
-            return *this; 
-        }
         // ________________ recursive case
         template <class T, class... Ts>
         ErrorCode bind_variadic__(vector<string>::size_type i, vector<string> col_ids, T val, Ts... vals)
@@ -406,13 +397,6 @@ namespace cxx_sqlite3
         ErrorCode bind(vector<string> col_ids, T val, Ts... vals)
         {
             return bind_variadic__(0, col_ids, val, vals...);
-        }
-        template <class T>
-        statement & bind(string col_id, T val, ErrorCode &ec) noexcept
-        {
-            return_code_t rc = bind_one(col_id, val);
-            ec = ErrorCode(rc);
-            return *this;
         }
 
         // TODO ........
@@ -458,7 +442,7 @@ namespace cxx_sqlite3
             return *this;
         }
 
-        /** statement reset */
+        /** statement reset - C style */
         return_code_t reset() const
         {
             return_code_t rc;
@@ -469,6 +453,18 @@ namespace cxx_sqlite3
                 throw exception_reset(errmsg());
             }
             return rc;
+        }
+        /* noexcept version, error_code based */
+        statement & reset(ErrorCode ec) noexcept 
+        {
+            ec = sqlite3_reset(pStmt);
+            return *this;
+        }
+        /* noexcept const version, error_code based */
+        const statement & reset(ErrorCode ec) const noexcept 
+        {
+            ec = sqlite3_reset(pStmt);
+            return *this;
         }
 
         /** 
@@ -499,28 +495,93 @@ namespace cxx_sqlite3
          */
         template <class... Ts>
         ErrorCode query(const string sql, 
-            vector<string> col_ids, Ts... vals)
+            vector<string> col_ids, Ts... vals) // throws ...
         {
             ErrorCode ec;
-            rc = prepare(sql);
-            rc = bind(col_ids, vals...);
-            return ErrorCode(rc);
+            ec = prepare(sql);
+            ec = bind(col_ids, vals...);
+            return ec;
         }
         /** Version with no arguments. */
-        ErrorCode query(const string sql)
+        ErrorCode query(const string sql) // throws ...
         {
-            prepare(sql);
-            return errorCode();
+            ErrorCode ec;
+            ec = prepare(sql);
+            return ec;
         }
-        statement & query(const string sql, ErrorCode &ec) noexcept
-        {
-            prepare(sql, ec);
-            return *this;
-        }
-
         /**
-         * Fetch the next row of the result set
+         * Fetch the next row of the result set associated with the more
+         * recent query.
          */
+        typedef std::string columnName;
+        typedef generic_object columnValue;
+        typedef std::pair<columnName, columnValue> field;
+        typedef field column;        // field = column
+        typedef std::map<columnName, columnValue> row;
+        typedef row record;          // row = record
+        typedef std::vector<record> recordSet;
+        typedef recordSet result;    // result = recordSet
+        row fetch_row(ErrorCode &ec)      // throws ...
+        {
+            record r{};
+            col_index_t j, n_cols;
+            const char * col_name;
+            data_type_t col_type;
+            int64_t intval;
+            const unsigned char *textval;
+            double doubleval;
+            const void *blobval;
+
+            step(ec);
+            cout << "step returned: " << ec << "\n";
+            if ( ec != error::row ) { 
+                reset(ec); 
+                return r;
+            }
+
+            n_cols = colum_count(pStmt);
+            for (j = 0; j < n_cols; j++) {
+                col_type = column_type(pStmt, j);    // column type
+                col_name = column_name(pStmt, j);    // column name
+                switch(col_type) {
+                case data_type::int_t:
+                    intval = sqlite3_column_int64(pStmt, j);
+                    printf("%16s    (int):    %ld\n", col_name, intval);
+                    r.insert(field{col_name, SQLITE3_OINT(intval)});
+                    break;
+                case data_type::float_t:
+                    doubleval = sqlite3_column_double(pStmt, j);
+                    printf("%16s (double):    %lf\n", col_name, doubleval);
+                    r.insert(field{col_name, SQLITE3_ODOUBLE(doubleval)});
+                    break;    
+                case data_type::text_t:
+                    textval = sqlite3_column_text(pStmt, j);
+                    printf("%16s   (text):    %s\n", col_name, textval);
+                    r.insert(field{col_name, SQLITE3_OSTRING((const char *)textval)});
+                    break;
+                case data_type::blob_t:
+                    blobval = sqlite3_column_blob(pStmt, j);
+                    // TODO ...
+                    printf("%16s   (blob):    BLOB\n", col_name);
+                    //printf("%s:    %s\n", col_name, textval);
+                    r.insert(field{col_name, SQLITE3_OGEN((void *)blobval)});
+                    break;
+                case data_type::null_t:
+                    // TODO ...
+                    // How do I cast the internal value stored in BLOB back to
+                    // the original data ?
+                    printf("%16s:             NULL\n", col_name);
+                    r.insert(field{col_name, SQLITE3_OGEN((void *)blobval)});
+                    break;
+                default:
+                    printf("%16s:             UNDEFINED\n", col_name);
+                    ;
+                }
+            }
+
+            reset(ec);
+            return r;
+        }
 
 
         /**
@@ -696,7 +757,8 @@ namespace cxx_sqlite3
         { 
             if (stmt != nullptr)
             {
-                delete stmt; 
+                cout << "................1\n";
+                delete stmt;    // will call sqlite3_finalize()
                 stmt = nullptr;
             }
         }

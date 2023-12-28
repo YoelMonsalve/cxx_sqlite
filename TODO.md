@@ -5,3 +5,4 @@
 - [ ] Implement the signature `db::command(std::string sql, arg1, val1, arg2, val2, ...)`.
 - [ ] Add `const` qualifier where possible/needed on `sqlite.hpp` (consider defining const versions).
 - [ ] `bind` with `generic_col_vals`.
+- [ ] Define the special object `SQLITE3_ONULL``.

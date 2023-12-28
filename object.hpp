@@ -241,7 +241,7 @@ typedef cxx_sqlite3::basic_object<char> SQLITE3_OCHAR;
 typedef cxx_sqlite3::basic_object<float> SQLITE3_OFLOAT;
 typedef cxx_sqlite3::basic_object<double> SQLITE3_ODOUBLE;     // equivalent to sqlite3-like DOUBLE
 typedef cxx_sqlite3::basic_object<char *> SQLITE3_OTEXT;       // equivalent to sqlite3-like TEXT
-typedef cxx_sqlite3::basic_object<const char *> SQLITE3_OCTEXT;
+typedef cxx_sqlite3::basic_object<const unsigned char *> SQLITE3_OCTEXT;
 typedef cxx_sqlite3::basic_object<std::string> SQLITE3_OSTRING;    // another equivalent to sqlite3-like TEXT
 typedef cxx_sqlite3::generic_object SQLITE3_OGEN;
 #endif

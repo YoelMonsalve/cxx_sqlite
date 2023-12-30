@@ -127,7 +127,6 @@ int main(int argc, char** argv)
 		std::cout << "Table created Successfully" << std::endl; 
 
 	db.reset();
-	db.finalize();
 	return 0;
 	#endif
 
@@ -142,7 +141,7 @@ int main(int argc, char** argv)
 	ec = db.command2(sql);
 	//cout << "command2 returned: " << rc << endl;
 	
-	#if 1
+	#if 0
 	ec = db.getStatement()->query(sql.c_str());
 	cout << "query returned: " << ec << endl;
 	cout << "errmsg: " << db.getStatement()->errmsg() << endl;
@@ -205,32 +204,30 @@ int main(int argc, char** argv)
 	double salary = 300.22;
 	
 	#if 1
-	db.prepare("INSERT INTO PERSON(`id`,`name`,`salary`) VALUES(:id,:name,:salary);")
-	  	.bind({":id"}, VAL_INT())
+	db.prepare("INSERT OR REPLACE INTO PERSON(`id`,`name`,`salary`) VALUES(:id,:name,:salary);")
+	  	.bind({":id"}, 1) //VAL_INT())
 	  	.bind({":name", ":salary"}, 
 	        SQLITE3_OSTRING{"John"}, salary);
 	cout << ec << endl;
 
-	rc = 0;
-	try {
-		//rc = db.step();
-		db.step(ec);
-		if (ec != error::done)  {
-			cout << ec
-				<< ": " << db.errmsg()
-				<< endl;
-			exit(1);
-		}
-		cout << "last step returned: " << ec.value() 
-			<< " [ROW: " << sqlite::return_code::row
-			<< ", DONE: " << sqlite::return_code::done
-			<< "]"
-			<< endl;
-		db.reset();
-	} catch (sqlite::exception &e) {
-		cout << "exception detected: " << e.what() << endl;
+	rc = db.step();    // THROWS
+	/*
+	// --- no-throw approach ---
+	db.step(ec);       // NOTHROWS
+	if (ec != error::done)  {
+		cout << ec
+		     << ": " << db.errmsg()
+			 << endl;
 		exit(1);
 	}
+	// ---
+	*/
+	cout << "last step returned: " << ec.value() 
+		<< " [ROW: " << sqlite::return_code::row
+		<< ", DONE: " << sqlite::return_code::done
+		<< "]"
+		<< endl;
+	db.reset();
 	db.close();
 	return 0;
 	#endif

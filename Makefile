@@ -9,7 +9,7 @@ CXX = g++
 CFLAGS   = -I$(BUILD_INC_DIR) --std=c99 -O1
 # The -MMD and -MP flags together generate Makefiles for us!
 # These files will have .d instead of .o as the output.
-CXXFLAGS = -I$(BUILD_INC_DIR) --std=c++11 -O1
+CXXFLAGS = -I$(BUILD_INC_DIR) --std=c++11 -O0
 # C++ preprocessor flags
 CPPFLAGS =
 # library flags

@@ -139,7 +139,7 @@ int main(int argc, char** argv)
 	std::cout << "STATE OF TABLE BEFORE INSERT" << std::endl; 
 	sql = "SELECT id,name,salary,`created_at` FROM PERSON;"; 
 	ec = db.command2(sql);
-	//cout << "command2 returned: " << rc << endl;
+	cout << "command2 returned: " << ec() << endl;
 	
 	#if 0
 	ec = db.getStatement()->query(sql.c_str());

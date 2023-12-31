@@ -109,7 +109,7 @@ int main(int argc, char** argv)
 	std::string sql;
     sqlite::return_code_t rc;
 	sqlite::ErrorCode ec;
-	sqlite::db db("example.db");
+	sqlite::database db("example.db");
 	sqlite::connection conn = db.getConnection();
 
 	#if 0

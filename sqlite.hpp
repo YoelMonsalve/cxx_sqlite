@@ -485,13 +485,13 @@ namespace cxx_sqlite3
         typedef recordSet result;    // result = recordSet
         row fetch_row(ErrorCode &ec)      // throws ...
         {
-            record r{};
+            row r{};
             col_index_t j, n_cols;
-            const char * col_name;
+            const char *col_name;
             data_type_t col_type;
-            int64_t intval;
+            int64_t     intval;
             const unsigned char *textval;
-            double doubleval;
+            double      doubleval;
             const void *blobval;
 
             step(ec);
@@ -601,7 +601,7 @@ namespace cxx_sqlite3
     };
 
     /** Main class */
-    class db
+    class database
     {
 
         // ... private methods here 
@@ -615,7 +615,7 @@ namespace cxx_sqlite3
 
     public:
         /** constructors */
-        db(const char *filename, 
+        database(const char *filename, 
             int mode = open_mode::readwrite | open_mode::create
                        | open_mode::nomutex | open_mode::nofollow)
             : conn(nullptr), stmt(nullptr), 
@@ -623,7 +623,7 @@ namespace cxx_sqlite3
         {
             open(filename, mode);
         }
-        db(const string &filename) : db(filename.c_str()) {}
+        database(const string &filename) : database(filename.c_str()) {}
 
         /** starts a new connection to the given database filename */
         void open(const char *filename, int mode)
@@ -658,7 +658,7 @@ namespace cxx_sqlite3
         }
 
         /** prepare internal statement */
-        db &prepare(const char *zSql, int nByte = -1)
+        database &prepare(const char *zSql, int nByte = -1)
         {
             if (stmt == nullptr)
                 throw exception("in db::prepare: statement object is null");
@@ -674,7 +674,7 @@ namespace cxx_sqlite3
 
         /** bind values */
         template <class... Ts>
-        db &bind(vector<string> col_ids, Ts... vals)
+        database &bind(vector<string> col_ids, Ts... vals)
         {
             stmt->bind(col_ids, vals...);
             return *this;
@@ -684,7 +684,7 @@ namespace cxx_sqlite3
         ErrorCode step() const 
         { return stmt->step(); }
 
-        db & step(ErrorCode &ec) noexcept 
+        database & step(ErrorCode &ec) noexcept 
         { 
             stmt->step(ec);
             return *this;
@@ -843,7 +843,7 @@ namespace cxx_sqlite3
         { return sqlite3_get_autocommit(conn); }
 
         /** destructor */
-        ~db() {
+        ~database() {
             std::cout << "db::~db() called\n";
             close();        // close connection
         }

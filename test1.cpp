@@ -71,6 +71,7 @@ using std::tuple;
 #define sqlite cxx_sqlite3
 using error_code_t = sqlite::error_code_t;
 using sqlite::error;
+using sqlite::col_id_t;
 
 /* CREATE TABLES
 CREATE TABLE PERSON(id       INTEGER PRIMARY KEY NOT NULL,name     TEXT,salary   FLOAT NOT NULL, created_at TEST DEFAULT CURRENT_TIMESTAMP);
@@ -204,20 +205,15 @@ int main(int argc, char** argv)
 	int val = 1;
 	SQLITE3_OINT VAL_INT = val;
 	double salary = 300.22;
-	
-	string a{"bar"};
-	vector<string> b{"bar", "baz"};
-	//db.foo(a);
-	//db.foo(b);
-	//db.foo({"bar", "baz"});
-	//db.foo({"bar"});
-	//return 0;
 
 	#if 1
 	db.prepare("INSERT OR REPLACE INTO PERSON(`id`,`name`,`salary`) VALUES(:id,:name,:salary);")
-	  	.bind({":id"}, 1) //VAL_INT())
-		.bind({":name", ":salary"}, SQLITE3_OSTRING{"John"}, salary);
+	  	.bind({":id"}, 1); //VAL_INT())
+		//.bind({":name", ":salary"}, SQLITE3_OSTRING{"John"}, salary);
 		//.bind(":name", SQLITE3_OSTRING("John"), ":salary", salary);
+	db.getStatement()->bind(sqlite::make_field<string>(":name", "John"));
+	db.getStatement()->bind(std::pair<col_id_t, double>{":salary", salary});
+
 	cout << ec << endl;
 
 	rc = db.step();    // THROWS

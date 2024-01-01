@@ -96,6 +96,16 @@ namespace cxx_sqlite3
         static sqlite3_destructor_type bind_transient;
     };
 
+
+    /**
+     * Utility function: make a `field` type, from an arbitrary value
+    */
+    template <class ColValType>
+    std::pair<col_id_t, ColValType> make_field(col_id_t col_id, ColValType val)
+    {
+        return std::move(std::pair<col_id_t, ColValType>{col_id, val});
+    }
+
     /** sqlite3 prepared statement */
     class statement
     {
@@ -326,13 +336,13 @@ namespace cxx_sqlite3
         /** 
          * This generic template method allows declarations such as:
          * 
-         *   db.bind_one(stmt, std::pair<string, int>{":id", 1})
-         *   db.bind_one(stmt, std::pair<string, string>{":name", "John"})
+         *   db.bind(stmt, std::pair<string, int>{":id", 1})
+         *   db.bind(stmt, std::pair<string, string>{":name", "John"})
          */
-        template <class ColIdType, class ColValType>
-        ErrorCode bind_one(std::pair<ColIdType, ColValType> pair_)
+        template <class ColValType>
+        ErrorCode bind(std::pair<col_id_t, ColValType> pair_)
         {   
-            return bind_one(pStmt, pair_.first, pair_.second);
+            return bind_one(pair_.first, pair_.second);
         }
 
         /**
@@ -621,6 +631,12 @@ namespace cxx_sqlite3
         /** C++ string version, no arguments */
         inline void execute(const string &sql)
         { execute(sql.c_str()); }        
+
+        template <class ColValType>
+        static std::pair<col_id_t, ColValType> make_field(col_id_t col_id, ColValType val)
+        {
+            return {col_id, val};
+        }
     };
 
     /** Main class */

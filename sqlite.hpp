@@ -274,49 +274,49 @@ namespace cxx_sqlite3
         }
 
         /* int */
-        ErrorCode bind_one(string col_id, int val)
+        ErrorCode bind_one(col_id_t col_id, int val)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind INT\n";
             return bind_int(iCol, val);
         }
         /* int64 */
-        ErrorCode bind_one(string col_id, int64_t val)
+        ErrorCode bind_one(col_id_t col_id, int64_t val)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind INT64\n";
             return bind_int_64(iCol, val);
         }
         /* double */
-        ErrorCode bind_one(string col_id, double val)
+        ErrorCode bind_one(col_id_t col_id, double val)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind DOUBLE\n";
             return bind_double(iCol, val);
         }
         /* const string */
-        ErrorCode bind_one(string col_id, const string &val, destructor_type hdl = bind_handler::bind_transient)
+        ErrorCode bind_one(col_id_t col_id, const string &val, destructor_type hdl = bind_handler::bind_transient)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind const string &, index: " << iCol << "\n";
             return bind_text(iCol, val.c_str(), val.size(), hdl);
         }
         /* const string (64) */
-        ErrorCode bind_one(string col_id, const string &val, destructor_type hdl, encoding encoding_)
+        ErrorCode bind_one(col_id_t col_id, const string &val, destructor_type hdl, encoding encoding_)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind const string & (64)\n";
             return bind_text64(iCol, val.c_str(), val.size(), hdl, encoding_);
         }
         /* blob(const void *) - Warning: very dangerous! */
-        ErrorCode bind_one(string col_id, const void * val, uint64 n, destructor_type hdl = bind_handler::bind_transient)
+        ErrorCode bind_one(col_id_t col_id, const void * val, uint64 n, destructor_type hdl = bind_handler::bind_transient)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind blob (64)\n";
             return bind_blob64(iCol, val, n, hdl);
         }
         /* null value */
-        ErrorCode bind_one(string col_id)
+        ErrorCode bind_one(col_id_t col_id)
         {
             col_index_t iCol = bind_parameter_index(col_id);
             //std::cout << "bind NULL\n";
@@ -338,14 +338,14 @@ namespace cxx_sqlite3
         /**
          * This variadic method allows to pass several values at once.
         */
-        ErrorCode bind_variadic__(vector<string>::size_type i, vector<string> col_ids)
+        ErrorCode bind_variadic__(vector<string>::size_type i, vector<col_id_t> col_ids)
         { 
             // we reached the end of processing
             return error::ok; 
         }
         // ________________ recursive case
         template <class T, class... Ts>
-        ErrorCode bind_variadic__(vector<string>::size_type i, vector<string> col_ids, T val, Ts... vals)
+        ErrorCode bind_variadic__(vector<string>::size_type i, vector<col_id_t> col_ids, T val, Ts... vals)
         {
             rc_ = bind_one(col_ids[i], val);
             if (rc_ != (int)error::ok) {
@@ -359,7 +359,7 @@ namespace cxx_sqlite3
         }
         // generic bind method
         template <class T, class... Ts>
-        ErrorCode bind(vector<string> col_ids, T val, Ts... vals)
+        ErrorCode bind(vector<col_id_t> col_ids, T val, Ts... vals)
         {
             return bind_variadic__(0, col_ids, val, vals...);
         }
@@ -389,7 +389,7 @@ namespace cxx_sqlite3
         // TODO ........
         typedef vector<generic_object> generic_col_vals;
         template <class T>
-        ErrorCode bind(vector<string> col_ids, generic_col_vals vals)
+        ErrorCode bind(vector<col_id_t> col_ids, generic_col_vals vals)
         {
             for (vector<string>::size_type i = 0; i < col_ids.size(); i++) {
                 // TODO ........ (!)
@@ -479,7 +479,7 @@ namespace cxx_sqlite3
          */
         template <class... Ts>
         ErrorCode query(const string sql, 
-            vector<string> col_ids, Ts... vals) // throws ...
+            vector<col_id_t> col_ids, Ts... vals) // throws ...
         {
             ErrorCode ec;
             ec = prepare(sql);
@@ -574,7 +574,7 @@ namespace cxx_sqlite3
          */
         template <class... Ts>
         void execute(const char *sql, 
-            vector<string> col_ids, Ts... vals) 
+            vector<col_id_t> col_ids, Ts... vals) 
         {
             exception     *e_ = nullptr;
             try {
@@ -596,7 +596,7 @@ namespace cxx_sqlite3
         /** C++ string version, bind arguments */
         template <class... Ts>
         void execute(const string &sql, 
-            vector<string> col_ids, Ts... vals)
+            vector<col_id_t> col_ids, Ts... vals)
         { execute(sql.c_str(), col_ids, vals...); }
 
         /** C const char * version, no arguments */
@@ -762,13 +762,13 @@ namespace cxx_sqlite3
 
         template <class... Ts>
         void execute(const char *sql, 
-            vector<string> col_ids, Ts... vals) 
+            vector<col_id_t> col_ids, Ts... vals) 
         {
             stmt->execute(sql, col_ids, vals...);
         }
         template <class... Ts>
         void execute(const string &sql, 
-            vector<string> col_ids, Ts... vals) 
+            vector<col_id_t> col_ids, Ts... vals) 
         {
             stmt->execute(sql, col_ids, vals...);
         }

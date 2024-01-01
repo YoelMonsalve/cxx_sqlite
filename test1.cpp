@@ -205,6 +205,14 @@ int main(int argc, char** argv)
 	SQLITE3_OINT VAL_INT = val;
 	double salary = 300.22;
 	
+	string a{"bar"};
+	vector<string> b{"bar", "baz"};
+	//db.foo(a);
+	//db.foo(b);
+	//db.foo({"bar", "baz"});
+	//db.foo({"bar"});
+	//return 0;
+
 	#if 1
 	db.prepare("INSERT OR REPLACE INTO PERSON(`id`,`name`,`salary`) VALUES(:id,:name,:salary);")
 	  	.bind({":id"}, 1) //VAL_INT())

@@ -334,7 +334,7 @@ namespace cxx_sqlite3
         }
 
         /** 
-         * This generic template method allows declarations such as:
+         * This generic template method allows declarations such like:
          * 
          *   db.bind(stmt, std::pair<string, int>{":id", 1})
          *   db.bind(stmt, std::pair<string, string>{":name", "John"})
@@ -510,8 +510,7 @@ namespace cxx_sqlite3
         // typedef or using ? decide one ....
         typedef col_name_t columnName;
         typedef generic_object columnValue;
-        typedef std::pair<columnName, columnValue> field;
-        typedef field column;        // field = column
+        //typedef std::pair<columnName, columnValue> field;
         typedef std::map<columnName, columnValue> row;
         typedef row record;          // row = record
         typedef std::vector<record> recordSet;
@@ -542,31 +541,31 @@ namespace cxx_sqlite3
                 case data_type::int_t:
                     intval = sqlite3_column_int64(pStmt, j);
                     printf("%16s    (int):    %ld\n", col_name, intval);
-                    r.insert(field{col_name, SQLITE3_OINT(intval)});
+                    r.insert(make_field<SQLITE3_OINT>(col_name, intval));
                     break;
                 case data_type::float_t:
                     doubleval = sqlite3_column_double(pStmt, j);
                     printf("%16s (double):    %lf\n", col_name, doubleval);
-                    r.insert(field{col_name, SQLITE3_ODOUBLE(doubleval)});
+                    r.insert(make_field<SQLITE3_ODOUBLE>(col_name, doubleval));
                     break;    
                 case data_type::text_t:
                     textval = sqlite3_column_text(pStmt, j);
                     printf("%16s   (text):    %s\n", col_name, textval);
-                    r.insert(field{col_name, SQLITE3_OSTRING((const char *)textval)});
+                    r.insert(make_field<SQLITE3_OSTRING>(col_name, string{(const char *)textval}));
                     break;
                 case data_type::blob_t:
                     blobval = sqlite3_column_blob(pStmt, j);
                     // TODO ...
                     printf("%16s   (blob):    BLOB\n", col_name);
                     //printf("%s:    %s\n", col_name, textval);
-                    r.insert(field{col_name, SQLITE3_OGEN((void *)blobval)});
+                    r.insert(make_field<SQLITE3_OGEN>(col_name, (void *)blobval));
                     break;
                 case data_type::null_t:
                     // TODO ...
                     // How do I cast the internal value stored in BLOB back to
                     // the original data ?
                     printf("%16s:             NULL\n", col_name);
-                    r.insert(field{col_name, SQLITE3_OGEN((void *)blobval)});
+                    r.insert(make_field<SQLITE3_OGEN>(col_name, (void *)nullptr));
                     break;
                 default:
                     printf("%16s:             UNDEFINED\n", col_name);
@@ -725,7 +724,14 @@ namespace cxx_sqlite3
             stmt->bind(col_1, val_1, args...);
             return *this;
         }
-        
+        // signature for bind(std::pair<col_id_t, T>(col, val))
+        template <class ColValType>
+        database & bind(std::pair<col_id_t, ColValType> pair_)
+        {   
+            stmt->bind(pair_);
+            return *this;
+        }
+
         /** step */
         ErrorCode step() const 
         { return stmt->step(); }

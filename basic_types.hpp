@@ -50,8 +50,8 @@ namespace cxx_sqlite3
     //
     using destructor_type = sqlite3_destructor_type;
     using col_index_t     = int;
-    using col_name_t      = const char *;
-    using col_id_t        = col_name_t;
+    using col_id_t        = const char *;
+    using col_name_t      = col_id_t;
     using connection      = sqlite3 *;    // sqlite3 primitive connection type
 
     /** encoding methods */

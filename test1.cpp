@@ -72,6 +72,7 @@ using std::tuple;
 using error_code_t = sqlite::error_code_t;
 using sqlite::error;
 using sqlite::col_id_t;
+using sqlite::make_field;
 
 /* CREATE TABLES
 CREATE TABLE PERSON(id       INTEGER PRIMARY KEY NOT NULL,name     TEXT,salary   FLOAT NOT NULL, created_at TEST DEFAULT CURRENT_TIMESTAMP);
@@ -208,11 +209,11 @@ int main(int argc, char** argv)
 
 	#if 1
 	db.prepare("INSERT OR REPLACE INTO PERSON(`id`,`name`,`salary`) VALUES(:id,:name,:salary);")
-	  	.bind({":id"}, 1); //VAL_INT())
+	  	.bind({":id"}, 1) //VAL_INT())
 		//.bind({":name", ":salary"}, SQLITE3_OSTRING{"John"}, salary);
 		//.bind(":name", SQLITE3_OSTRING("John"), ":salary", salary);
-	db.getStatement()->bind(sqlite::make_field<string>(":name", "John"));
-	db.getStatement()->bind(std::pair<col_id_t, double>{":salary", salary});
+	    .bind(make_field(":name", "John"))    // pair-style
+		.bind(make_field(":salary", salary));    //pair-style
 
 	cout << ec << endl;
 

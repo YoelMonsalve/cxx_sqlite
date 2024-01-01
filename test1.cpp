@@ -140,17 +140,19 @@ int main(int argc, char** argv)
 	sql = "SELECT id,name,salary,`created_at` FROM PERSON;"; 
 	ec = db.command2(sql);
 	cout << "command2 returned: " << ec() << endl;
-	
-	#if 0
-	ec = db.getStatement()->query(sql.c_str());
-	cout << "query returned: " << ec << endl;
-	cout << "errmsg: " << db.getStatement()->errmsg() << endl;
+	//return;
 
-	db.getStatement()->fetch_row(ec);
+	#if 1
+	sqlite::statement *stmt = db.getStatement();
+	ec = stmt->query(sql.c_str());
+	cout << "query returned: " << ec << endl;
+	cout << "errmsg: " << stmt->errmsg() << endl;
+
+	stmt->fetch_row(ec);
 	cout << "fetch_row returned: " << ec << endl;
-	db.getStatement()->finalize();
+	stmt->finalize();
 	
-	return 1;
+	//return 1;
 	#endif
 
 	/*db.prompt(
@@ -206,8 +208,8 @@ int main(int argc, char** argv)
 	#if 1
 	db.prepare("INSERT OR REPLACE INTO PERSON(`id`,`name`,`salary`) VALUES(:id,:name,:salary);")
 	  	.bind({":id"}, 1) //VAL_INT())
-	  	.bind({":name", ":salary"}, 
-	        SQLITE3_OSTRING{"John"}, salary);
+		.bind({":name", ":salary"}, SQLITE3_OSTRING{"John"}, salary);
+		//.bind(":name", SQLITE3_OSTRING("John"), ":salary", salary);
 	cout << ec << endl;
 
 	rc = db.step();    // THROWS

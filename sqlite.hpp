@@ -363,7 +363,29 @@ namespace cxx_sqlite3
         {
             return bind_variadic__(0, col_ids, val, vals...);
         }
-
+        
+        // second signature: bind(col_id_1, val_1, col_id_2, val_2, ...)
+        ErrorCode bind_variadic_2__()  // base case
+        { 
+            // we reached the end of processing
+            return error::ok; 
+        }
+        template <class T, class... VarTypes>
+        ErrorCode bind_variadic_2__(col_id_t col_1, T val_1, VarTypes... args)
+        {
+            rc_ = bind_one(col_1, val_1);
+            if (rc_ != (int)error::ok) {
+                // error, throw exception here
+                throw exception_bind(errmsg());
+            }
+            return bind_variadic_2__(args...);
+        }
+        template <class T, class... VarTypes>
+        ErrorCode bind(const char *col_1, T val_1, VarTypes... args)
+        {
+            return bind_variadic_2__(col_1, val_1, args...);
+        }   
+        
         // TODO ........
         typedef vector<generic_object> generic_col_vals;
         template <class T>
@@ -451,7 +473,7 @@ namespace cxx_sqlite3
         }
 
         /**
-         * Submit a query for execution. This is similar to `mysqli::query()` method
+         * Submit a query for execution. This is similar to the `mysqli::query()` method
          * of the PHP MySQLi library (https://www.php.net/manual/en/mysqli.query.php).
          * Version with arguments.
          */
@@ -475,7 +497,8 @@ namespace cxx_sqlite3
          * Fetch the next row of the result set associated with the more
          * recent query.
          */
-        typedef std::string columnName;
+        // typedef or using ? decide one ....
+        typedef col_name_t columnName;
         typedef generic_object columnValue;
         typedef std::pair<columnName, columnValue> field;
         typedef field column;        // field = column
@@ -674,12 +697,19 @@ namespace cxx_sqlite3
 
         /** bind values */
         template <class... Ts>
-        database &bind(vector<string> col_ids, Ts... vals)
+        database &bind(vector<col_id_t> cols, Ts... vals)
         {
-            stmt->bind(col_ids, vals...);
+            stmt->bind(cols, vals...);
             return *this;
         }
-
+        // signature for bind(col_id_1, val_1, col_id_2, val_2, ...)
+        template <class T, class... ArgTypes>
+        database &bind(const char *col_1, T val_1, ArgTypes... args)
+        {
+            stmt->bind(col_1, val_1, args...);
+            return *this;
+        }
+        
         /** step */
         ErrorCode step() const 
         { return stmt->step(); }

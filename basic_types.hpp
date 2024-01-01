@@ -50,7 +50,7 @@ namespace cxx_sqlite3
     //
     using destructor_type = sqlite3_destructor_type;
     using col_index_t     = int;
-    using col_name_t      = std::string;
+    using col_name_t      = const char *;
     using col_id_t        = col_name_t;
     using connection      = sqlite3 *;    // sqlite3 primitive connection type
 

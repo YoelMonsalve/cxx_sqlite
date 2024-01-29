@@ -132,7 +132,7 @@ int main(int argc, char** argv)
 	return 0;
 	#endif
 
-	db.execute("CREATE TABLE IF NOT EXISTS person("
+	db.execute("CREATE TABLE person("
 				"id       INTEGER PRIMARY KEY NOT NULL,"
 				"name     TEXT,"
 				"salary   FLOAT NOT NULL);"
@@ -210,8 +210,9 @@ int main(int argc, char** argv)
 	#if 1
 	db.prepare("INSERT OR REPLACE INTO PERSON(`id`,`name`,`salary`) VALUES(:id,:name,:salary);")
 	  	.bind({":id"}, 1) //VAL_INT())
-		//.bind({":name", ":salary"}, SQLITE3_OSTRING{"John"}, salary);
-		//.bind(":name", SQLITE3_OSTRING("John"), ":salary", salary);
+		//.bind({":name", ":salary"}, SQLITE3_OSTRING{"John"}, salary);    // vector style
+		//.bind(":name", SQLITE3_OSTRING("John"),    // comma-separated style    
+		//      ":salary", salary);
 	    .bind(make_field(":name", "John"))    // pair-style
 		.bind(make_field(":salary", salary));    //pair-style
 

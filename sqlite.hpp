@@ -611,18 +611,20 @@ namespace cxx_sqlite3
         /** C const char * version, no arguments */
         void execute(const char *sql) 
         {
-            exception     *e_ = nullptr;
+            exception e_     = noexception{};
+            bool      raised = false;
             try {
                 /* discarding return values, just throw exception, if any */
                 prepare(sql);
                 step();
                 reset();
             } catch (exception &e) {
-                e_ = &e;
-                //std::cerr << "exception detected: " << e.what() << std::endl;
+                e_ = e;
+                raised = true;    // flag
+                std::cerr << "exception detected: " << e.what() << std::endl;
             }
             finalize();
-            if (e_ != nullptr) {
+            if (raised) {
                 // propagate exception
                 throw e_;
             }
@@ -896,7 +898,7 @@ namespace cxx_sqlite3
 
         /** destructor */
         ~database() {
-            std::cout << "db::~db() called\n";
+            std::cout << "database::~database() called\n";
             close();        // close connection
         }
 

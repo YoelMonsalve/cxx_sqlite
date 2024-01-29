@@ -585,7 +585,8 @@ namespace cxx_sqlite3
         void execute(const char *sql, 
             vector<col_id_t> col_ids, Ts... vals) 
         {
-            exception     *e_ = nullptr;
+            exception e_     = noexception{};
+            bool      raised = false;
             try {
                 /* discarding return values, just throw exception, if any */
                 prepare(sql);
@@ -593,11 +594,12 @@ namespace cxx_sqlite3
                 step();
                 reset();
             } catch (exception &e) {
-                e_ = &e;
-                //std::cerr << "exception detected: " << e.what() << std::endl;
+                e_ = e;
+                raised = true;
+                std::cerr << "exception detected: " << e.what() << std::endl;
             }
             finalize();
-            if (e_ != nullptr) {
+            if (raised) {
                 // propagate exception
                 throw e_;
             }

@@ -8,7 +8,7 @@
  * @date    2023-11-11
  * 
  * (C) Copyright VDI Technologies, LLC. 2019-2023.
- * Tulsa - Oklahoma.
+ * Tulsa - OK.
  */
 
 #ifndef OBJECT_HPP_

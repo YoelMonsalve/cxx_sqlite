@@ -21,6 +21,7 @@
 #include <string>
 #include <cstdio>    /* sometimes, it is easier to call printf() */
 #include <cstring>
+#include <cstdint>   /* int32_t, int64_t */
 #include <iostream>
 #include <iomanip>
 #include <sstream>

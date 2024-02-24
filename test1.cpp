@@ -132,7 +132,7 @@ int main(int argc, char** argv)
 	return 0;
 	#endif
 
-	db.execute("CREATE TABLE person("
+	db.execute("CREATE TABLE IF NOT EXISTS person("
 				"id       INTEGER PRIMARY KEY NOT NULL,"
 				"name     TEXT,"
 				"salary   FLOAT NOT NULL);"

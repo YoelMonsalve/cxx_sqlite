@@ -7,7 +7,7 @@
  * @date    2023-11-13
  * 
  * Copyright (C) VDI Technologies, LLC. 2019-2023.
- * Tulsa - Oklahoma.
+ * Tulsa - OK.
  */
 
 /**

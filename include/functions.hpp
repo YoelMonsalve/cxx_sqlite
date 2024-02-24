@@ -11,7 +11,7 @@
  * @date    2023-11-11
  * 
  * Copyright (C) VDI Technologies, LLC. 2019-2023.
- * Tulsa, OK..
+ * Tulsa, OK.
  */
 
 #ifndef SQLITE_FUNCTIONS_HPP_

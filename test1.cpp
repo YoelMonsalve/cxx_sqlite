@@ -139,7 +139,7 @@ int main(int argc, char** argv)
 			   );
 
 	std::cout << "STATE OF TABLE BEFORE INSERT" << std::endl; 
-	sql = "SELECT id,name,salary,`created_at` FROM PERSON;"; 
+	sql = "SELECT id,name,salary FROM PERSON;"; 
 	ec = db.command2(sql);
 	cout << "command2 returned: " << ec() << endl;
 	//return;
@@ -207,7 +207,7 @@ int main(int argc, char** argv)
 	SQLITE3_OINT VAL_INT = val;
 	double salary = 300.22;
 
-	#if 1
+	#if 0
 	db.prepare("INSERT OR REPLACE INTO PERSON(`id`,`name`,`salary`) VALUES(:id,:name,:salary);")
 	  	.bind({":id"}, 1) //VAL_INT())
 		//.bind({":name", ":salary"}, SQLITE3_OSTRING{"John"}, salary);    // vector style
@@ -235,11 +235,10 @@ int main(int argc, char** argv)
 		<< ", DONE: " << sqlite::return_code::done
 		<< "]"
 		<< endl;
-	db.reset();
+	//db.reset();
 	db.close();
-	return 0;
 	#endif
-	int N_times = 5;
+	int N_times = 100;
 	int id = 0;
 	db.execute("BEGIN TRANSACTION");
 	assert(!db.autocommit());
@@ -263,4 +262,3 @@ int main(int argc, char** argv)
 
 	return 0; 
 } 
-

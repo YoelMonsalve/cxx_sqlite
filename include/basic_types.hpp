@@ -10,7 +10,7 @@
  * @author  Yoel Monsalve
  * @date    2023-11-11
  * 
- * (C) Copyright Yoel Monsalve 2019-2026.
+ * (C) Copyright Yoel Monsalve 2025-2026.
  */
 
 #ifndef SQLITE_BASIC_TYPES_HPP_
@@ -39,7 +39,7 @@ namespace cxx_sqlite3
         double_t = SQLITE_FLOAT,
         text_t   = SQLITE_TEXT,
         blob_val = SQLITE_BLOB,
-        null_t   = SQLITE_NULL,
+        null_val = SQLITE_NULL,
     };
 
     /** importing sqlite3 native objects and types to this space */

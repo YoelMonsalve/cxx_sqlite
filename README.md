@@ -110,14 +110,26 @@ blob_t avatar = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
 db.execute("INSERT INTO users (id, name, bio) VALUES (:id, :name, :bio);",
            ":id", 3, ":name", "Charlie", ":bio", avatar);
 
-// Reading row values with NULL detection
+// Reading row values with std::optional for null safety
 statement query = db.prepare_statement("SELECT name, bio FROM users WHERE id = :id;");
 query.bind(":id", 3);
 row r = query.fetch_row();
 
-if (!r.is_null("bio")) {
-    blob_t data = r["bio"].as<blob_t>();
-    std::cout << "Loaded avatar (" << data.size() << " bytes)\n";
+auto opt_bio = r["bio"].as<std::optional<blob_t>>();
+if (opt_bio.has_value()) {
+    std::cout << "Loaded avatar (" << opt_bio->size() << " bytes)\n";
+} else {
+    std::cout << "User has no avatar.\n";
+}
+```
+
+### 5. C++17 Tuple Deconstruction (`row.as<Types...>()`)
+
+```cpp
+for (const auto &row : db.query("SELECT id, name, balance FROM users ORDER BY id ASC;")) {
+    // Unpack an entire row into native types using C++17 structured bindings!
+    auto [id, name, balance] = row.as<int, std::string, double>();
+    std::cout << "User #" << id << ": " << name << " ($" << balance << ")\n";
 }
 ```
 
@@ -126,9 +138,42 @@ if (!r.is_null("bio")) {
 ## Building and Testing
 
 ### Prerequisites
-- C++11 compatible compiler (`g++` 4.8+, `clang++` 3.4+, or MSVC 2015+)
+- C++17 compatible compiler (`g++` 7+, `clang++` 5+, or MSVC 2017+)
 - Linux / POSIX: System SQLite (`libsqlite3-dev` / `sqlite3`)
 - Windows: Standalone `wsqlite/` distribution included with this repository
+
+### Install sqlite
+
+#### Debian / Ubuntu / Mint
+```bash
+sudo apt update
+sudo apt install libsqlite3-dev
+```
+
+#### Fedora / RHEL / CentOS / Rocky Linux
+```bash
+# Fedora / RHEL 8+
+sudo dnf install sqlite-devel
+
+# Older CentOS / RHEL 7
+sudo yum install sqlite-devel
+```
+
+#### Arch Linux / Manjaro
+*(Arch includes development headers in the main package)*
+```bash
+sudo pacman -S sqlite
+```
+
+#### Alpine Linux
+```bash
+sudo apk add sqlite-dev
+```
+
+#### openSUSE
+```bash
+sudo zypper install sqlite3-devel
+```
 
 ### Build & Test Commands
 
@@ -159,4 +204,4 @@ make clean
 ## License
 
 This project is licensed under the terms of the [MIT License](LICENSE).  
-(C) Copyright Yoel Monsalve 2019-2026.
+(C) Copyright Yoel Monsalve 2025-2026.

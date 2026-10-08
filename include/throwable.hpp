@@ -6,7 +6,7 @@
  * @author  Yoel Monsalve
  * @date    2023-11-13
  * 
- * Copyright (C) Yoel Monsalve, 2019-2026.-
+ * Copyright (C) Yoel Monsalve, 2025-2026.-
  */
 
 /**

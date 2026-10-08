@@ -10,7 +10,7 @@
  * @author  Yoel Monsalve
  * @date    2023-11-11
  * 
- * (C) Copyright Yoel Monsalve 2019-2026.
+ * (C) Copyright Yoel Monsalve 2025-2026.
  */
 
 #ifndef SQLITE_HPP_
@@ -111,21 +111,29 @@ namespace cxx_sqlite3
         return std::move(std::pair<col_id_t, ColValType>{col_id, val});
     }
 
+    class row;
+
+    namespace detail {
+        template <typename Tuple, std::size_t... Is>
+        Tuple tuple_from_row_impl(const row &r, std::index_sequence<Is...>);
+    }
+
     /**
      * row
      * Represents a single database row with column name and index access,
-     * type-safe extraction via as<T>(), and NULL checking.
+     * type-safe extraction via as<T>(), std::optional<T> nullability,
+     * and tuple deconstruction (as<Types...>()).
      */
     class row
     {
         std::vector<std::string> col_names_;
-        std::vector<generic_object> values_;
+        std::vector<generic_value> values_;
         std::map<std::string, size_t> col_indices_;
 
     public:
         row() = default;
 
-        void add(const std::string &name, const generic_object &val)
+        void add(const std::string &name, const generic_value &val)
         {
             col_indices_[name] = values_.size();
             col_names_.push_back(name);
@@ -153,7 +161,7 @@ namespace cxx_sqlite3
             return values_[index].is_null();
         }
 
-        const generic_object &operator[](const std::string &name) const
+        const generic_value &operator[](const std::string &name) const
         {
             auto it = col_indices_.find(name);
             if (it == col_indices_.end()) {
@@ -162,12 +170,12 @@ namespace cxx_sqlite3
             return values_[it->second];
         }
 
-        const generic_object &operator[](const char *name) const
+        const generic_value &operator[](const char *name) const
         {
             return (*this)[std::string(name ? name : "")];
         }
 
-        const generic_object &operator[](size_t index) const
+        const generic_value &operator[](size_t index) const
         {
             if (index >= values_.size()) {
                 throw exception_column("column index out of range");
@@ -187,17 +195,40 @@ namespace cxx_sqlite3
             return (*this)[index].as<T>();
         }
 
+        /**
+         * Tuple deconstruction: row.as<std::tuple<int, string, double>>()
+         * or row.as<int, string, double>()
+         */
+        template <typename... Types>
+        std::tuple<Types...> as() const
+        {
+            constexpr std::size_t N = sizeof...(Types);
+            if (this->size() < N) {
+                throw exception_column("row has fewer columns than requested tuple size");
+            }
+            return detail::tuple_from_row_impl<std::tuple<Types...>>(
+                *this, std::make_index_sequence<N>{}
+            );
+        }
+
         const std::vector<std::string> &columns() const noexcept
         {
             return col_names_;
         }
 
         // Map-style insert for compatibility
-        void insert(const std::pair<col_id_t, generic_object> &p)
+        void insert(const std::pair<col_id_t, generic_value> &p)
         {
             add(p.first ? p.first : "", p.second);
         }
     };
+
+    namespace detail {
+        template <typename Tuple, std::size_t... Is>
+        inline Tuple tuple_from_row_impl(const row &r, std::index_sequence<Is...>) {
+            return Tuple{ (r[Is].template as<std::tuple_element_t<Is, Tuple>>())... };
+        }
+    }
 
     /** sqlite3 prepared statement */
     class statement
@@ -448,24 +479,32 @@ namespace cxx_sqlite3
         }
         ErrorCode bind_one(col_index_t iCol, std::nullptr_t) { return bind_null(iCol); }
         ErrorCode bind_one(col_index_t iCol, const SQLITE3_ONULL &) { return bind_null(iCol); }
-        ErrorCode bind_one(col_index_t iCol, const generic_object &val) {
-            switch (val.type()) {
-            case generic_object::type_tag::null_t:
+        ErrorCode bind_one(col_index_t iCol, const generic_value &val) {
+            return std::visit([this, iCol](const auto &arg) -> ErrorCode {
+                using T = std::decay_t<decltype(arg)>;
+                if constexpr (std::is_same_v<T, null_t>) {
+                    return this->bind_null(iCol);
+                } else if constexpr (std::is_same_v<T, int64_t>) {
+                    return this->bind_int_64(iCol, arg);
+                } else if constexpr (std::is_same_v<T, double>) {
+                    return this->bind_double(iCol, arg);
+                } else if constexpr (std::is_same_v<T, std::string>) {
+                    return this->bind_text(iCol, arg.c_str(), arg.size());
+                } else if constexpr (std::is_same_v<T, blob_t>) {
+                    return this->bind_blob(iCol, arg.data(), arg.size());
+                }
+            }, val.storage());
+        }
+        template <typename T>
+        ErrorCode bind_one(col_index_t iCol, const std::optional<T> &opt) {
+            if (!opt.has_value()) {
                 return bind_null(iCol);
-            case generic_object::type_tag::int_t:
-                return bind_int_64(iCol, val.as_int());
-            case generic_object::type_tag::float_t:
-                return bind_double(iCol, val.as_double());
-            case generic_object::type_tag::text_t:
-                return bind_text(iCol, val.as_string().c_str(), val.as_string().size());
-            case generic_object::type_tag::blob_t:
-                return bind_blob(iCol, val.as_blob().data(), val.as_blob().size());
             }
-            return bind_null(iCol);
+            return bind_one(iCol, *opt);
         }
         template <typename T>
         ErrorCode bind_one(col_index_t iCol, const basic_object<T> &val) {
-            return bind_one(iCol, static_cast<const generic_object &>(val));
+            return bind_one(iCol, static_cast<const generic_value &>(val));
         }
 
         /* Named bind_one overloads */
@@ -521,7 +560,7 @@ namespace cxx_sqlite3
         }
         
         /* Bind vector of column names and vector of generic values */
-        typedef vector<generic_object> generic_col_vals;
+        typedef vector<generic_value> generic_col_vals;
         ErrorCode bind(const vector<col_id_t> &col_ids, const generic_col_vals &vals)
         {
             size_t n = col_ids.size() < vals.size() ? col_ids.size() : vals.size();
@@ -687,10 +726,10 @@ namespace cxx_sqlite3
                 data_type_t col_type = column_type(j);
                 switch (col_type) {
                 case data_type::int_t:
-                    r.add(col_name, generic_object(static_cast<int64_t>(sqlite3_column_int64(pStmt, j))));
+                    r.add(col_name, generic_value(static_cast<int64_t>(sqlite3_column_int64(pStmt, j))));
                     break;
                 case data_type::float_t:
-                    r.add(col_name, generic_object(sqlite3_column_double(pStmt, j)));
+                    r.add(col_name, generic_value(sqlite3_column_double(pStmt, j)));
                     break;
                 case data_type::text_t: {
                     const unsigned char *txt = sqlite3_column_text(pStmt, j);
@@ -700,12 +739,12 @@ namespace cxx_sqlite3
                 case data_type::blob_val: {
                     const void *blob = sqlite3_column_blob(pStmt, j);
                     int bytes = sqlite3_column_bytes(pStmt, j);
-                    r.add(col_name, generic_object(blob, bytes > 0 ? static_cast<size_t>(bytes) : 0));
+                    r.add(col_name, generic_value(blob, bytes > 0 ? static_cast<size_t>(bytes) : 0));
                     break;
                 }
-                case data_type::null_t:
+                case data_type::null_val:
                 default:
-                    r.add(col_name, generic_object(nullptr));
+                    r.add(col_name, generic_value(nullptr));
                     break;
                 }
             }

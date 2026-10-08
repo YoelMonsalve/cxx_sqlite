@@ -10,7 +10,7 @@
  * @author  Yoel Monsalve
  * @date    2023-11-11
  * 
- * Copyright (C) Yoel Monsalve 2019-2023.
+ * Copyright (C) Yoel Monsalve 2025-2026.
  */
 
 #ifndef ERROR_CODE_HPP_

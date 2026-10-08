@@ -1,7 +1,7 @@
 # ==============================================================================
 # Makefile for cxx_sqlite3 library
-# High level wrapper for sqlite3 with modern C++ (C++11 and beyond)
-# (C) Copyright Yoel Monsalve 2019-2026.
+# High level wrapper for sqlite3 with modern C++ (C++17 and beyond)
+# (C) Copyright Yoel Monsalve 2025-2026.
 # ==============================================================================
 
 CC       ?= gcc
@@ -40,7 +40,7 @@ endif
 
 # Compiler and Preprocessor Flags
 CPPFLAGS := -I$(INC_DIR) -I$(WSQLITE_DIR)/include
-CXXFLAGS ?= -std=c++11 -Wall -Wextra -O2
+CXXFLAGS ?= -std=c++17 -Wall -Wextra -O2
 CFLAGS   ?= -std=c99 -Wall -Wextra -O2
 
 # Dependency tracking flags (-MMD -MP)

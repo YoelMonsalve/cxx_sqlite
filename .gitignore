@@ -14,3 +14,8 @@ wbuild/
 # legacy code
 legacy/
 git-command.sh
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3

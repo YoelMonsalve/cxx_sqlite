@@ -143,6 +143,24 @@ TEST_CASE("Type System - generic_object and Conversions")
         REQUIRE(extracted[3] == 0xEF);
     }
 
+    SECTION("std::optional nullability mapping")
+    {
+        generic_value null_val(nullptr);
+        auto opt_int = null_val.as<std::optional<int>>();
+        REQUIRE(!opt_int.has_value());
+        REQUIRE(opt_int == std::nullopt);
+
+        generic_value present_val(123);
+        auto opt_present = present_val.as<std::optional<int>>();
+        REQUIRE(opt_present.has_value());
+        REQUIRE(*opt_present == 123);
+
+        generic_value text_val("alpha");
+        auto opt_str = text_val.as<std::optional<std::string>>();
+        REQUIRE(opt_str.has_value());
+        REQUIRE(*opt_str == "alpha");
+    }
+
     SECTION("basic_object typed wrappers")
     {
         SQLITE3_OINT num(10);
@@ -218,16 +236,19 @@ TEST_CASE("Variadic Parameter Binding")
         REQUIRE(read_bio[4] == 0x05);
     }
 
-    SECTION("Vector column IDs binding style: execute(sql, vector<col_id_t>, vals...)")
+    SECTION("std::optional parameter binding")
     {
-        db.execute("INSERT INTO users (id, name, salary) VALUES (:id, :name, :sal);",
-                   std::vector<col_id_t>{":id", ":name", ":sal"},
-                   500, "Eve", 12000.50);
+        std::optional<std::string> null_bio = std::nullopt;
+        std::optional<double> present_sal = 14500.0;
+        db.execute("INSERT INTO users (id, name, salary, bio) VALUES (:id, :name, :sal, :bio);",
+                   ":id", 600, ":name", "Frank", ":sal", present_sal, ":bio", null_bio);
 
-        statement verify = db.prepare_statement("SELECT name, salary FROM users WHERE id = 500;");
+        statement verify = db.prepare_statement("SELECT salary, bio FROM users WHERE id = 600;");
         row r = verify.fetch_row();
-        REQUIRE(r["name"].as<std::string>() == "Eve");
-        REQUIRE(r["salary"].as<double>() == 12000.50);
+        REQUIRE(r["salary"].as<double>() == 14500.0);
+        REQUIRE(r.is_null("bio"));
+        auto opt_bio = r["bio"].as<std::optional<blob_t>>();
+        REQUIRE(!opt_bio.has_value());
     }
 
     SECTION("Tabular output helper (command2)")
@@ -299,12 +320,29 @@ TEST_CASE("Type-Safe Row Extraction")
         REQUIRE(r.get<std::string>("name") == "Book");
     }
 
-    SECTION("NULL column checks")
+    SECTION("NULL column checks with std::optional")
     {
         REQUIRE(!r.is_null("id"));
         REQUIRE(!r.is_null("name"));
         REQUIRE(r.is_null("note"));
         REQUIRE(r["note"].is_null());
+
+        auto opt_note = r["note"].as<std::optional<std::string>>();
+        REQUIRE(!opt_note.has_value());
+        REQUIRE(opt_note == std::nullopt);
+
+        auto opt_name = r["name"].as<std::optional<std::string>>();
+        REQUIRE(opt_name.has_value());
+        REQUIRE(*opt_name == "Book");
+    }
+
+    SECTION("Tuple deconstruction: row.as<Types...>()")
+    {
+        auto [id, name, price, note] = r.as<int, std::string, double, std::optional<std::string>>();
+        REQUIRE(id == 10);
+        REQUIRE(name == "Book");
+        REQUIRE(price == 19.99);
+        REQUIRE(!note.has_value());
     }
 
     SECTION("Out of bounds / non-existent column throws exception")

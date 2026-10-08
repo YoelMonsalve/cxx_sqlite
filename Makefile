@@ -1,55 +1,113 @@
-# Makefile
+# ==============================================================================
+# Makefile for cxx_sqlite3 library
+# High level wrapper for sqlite3 with modern C++ (C++11 and beyond)
+# (C) Copyright Yoel Monsalve 2019-2026.
+# ==============================================================================
 
-# C compiler
-CC  = gcc
-# C preprocessor 
-CPP =
-# C++ compiler 
-CXX = g++
-CFLAGS   = -I$(INC_DIR) --std=c99 -O1
-# The -MMD and -MP flags together generate Makefiles for us!
-# These files will have .d instead of .o as the output.
-CXXFLAGS = -I$(INC_DIR) --std=c++11 -O0
-# C++ preprocessor flags
-CPPFLAGS =
-# library flags
-LDFLAGS  = -lsqlite3
-# define flags
-DFLAGS   =
+CC       ?= gcc
+CXX      ?= g++
+AR       ?= ar
 
-.DELETE_ON_ERROR:
-.PHONY: all pre test clean_all
-.DEFAULT_GOAL: all
+# Directories
+INC_DIR     := include
+SRC_DIR     := src
+WSQLITE_DIR := wsqlite
 
-INC_DIR := include
-SRC_DIR := src
+# Platform detection
+ifeq ($(OS),Windows_NT)
+    PLATFORM  := Windows
+    BUILD_DIR ?= wbuild
+    BIN_EXT   := .exe
+    LDFLAGS   += -L$(WSQLITE_DIR)/lib -lsqlite3
+else
+    PLATFORM  := Linux
+    BUILD_DIR ?= build
+    BIN_EXT   :=
+    HAVE_SYSTEM_SQLITE := $(shell printf 'int main(){}' | gcc -lsqlite3 -x c - -o /dev/null 2>/dev/null && echo 1 || echo 0)
+    ifeq ($(HAVE_SYSTEM_SQLITE),1)
+        LDFLAGS += -lsqlite3
+    else
+        # Find system runtime library to link against via build symlink
+        SYSTEM_SQLITE_SO := $(firstword $(wildcard /usr/lib/*/libsqlite3.so.0 /usr/lib/libsqlite3.so.0 /lib/*/libsqlite3.so.0 /lib/libsqlite3.so.0))
+        ifneq ($(SYSTEM_SQLITE_SO),)
+            USE_SO_SYMLINK := 1
+            LDFLAGS += -L$(BUILD_DIR) -lsqlite3 -Wl,-rpath,'$$ORIGIN'
+        else
+            USE_EMBEDDED_SQLITE := 1
+        endif
+    endif
+endif
 
-headers := cpp_version.hpp exception.hpp error_code.hpp throwable.hpp sqlite.hpp functions.hpp basic_types.hpp object.hpp
-modules := sqlite.cpp
-tests   := test1
+# Compiler and Preprocessor Flags
+CPPFLAGS := -I$(INC_DIR) -I$(WSQLITE_DIR)/include
+CXXFLAGS ?= -std=c++11 -Wall -Wextra -O2
+CFLAGS   ?= -std=c99 -Wall -Wextra -O2
 
-all: test
+# Dependency tracking flags (-MMD -MP)
+DEPFLAGS = -MMD -MP
 
-test: $(tests)
+# Source files and targets
+LIB_SRCS := $(SRC_DIR)/sqlite.cpp
+LIB_OBJS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(LIB_SRCS))
 
-tests_obj := $(addsuffix .o,$(tests))
-obj       := sqlite.o
+# If using embedded SQLite C source fallback
+ifeq ($(USE_EMBEDDED_SQLITE),1)
+    SQLITE_C_OBJ := $(BUILD_DIR)/sqlite3_c.o
+    EXTRA_OBJS   += $(SQLITE_C_OBJ)
+endif
 
-tell:
-	@echo $(tests_obj)
+TEST_SRCS := $(sort $(wildcard test*.cpp))
+TEST_BINS := $(patsubst %.cpp,$(BUILD_DIR)/%$(BIN_EXT),$(TEST_SRCS))
 
-$(filter %.o,$(tests_obj)): %.o: %.cpp $(SRC_DIR)/$(modules) $(INC_DIR)/*
-	$(CXX) -o $@ -c $< $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(DFLAGS)
+# All object files for dependency generation
+ALL_OBJS := $(LIB_OBJS) $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(TEST_SRCS)) $(EXTRA_OBJS)
+DEPS     := $(ALL_OBJS:.o=.d)
 
-$(filter %.o,$(obj)): %.o: $(SRC_DIR)/%.cpp $(SRC_DIR)/$(modules) $(INC_DIR)/*
-	$(CXX) -o $@ -c $< $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(DFLAGS)
+.PHONY: all test clean clean_all dirs
+.SECONDARY:
 
-#test%: test%.o $(obj)
-#	$(CXX) -o $@ $@.o $(obj) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(DFLAGS)
+.DEFAULT_GOAL := all
 
-%: %.o $(obj)
-	$(CXX) -o $@ $@.o $(obj) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(DFLAGS)
+all: dirs test
+
+dirs:
+	@mkdir -p $(BUILD_DIR)
+
+# Symlink rule for Linux runtime libsqlite3 if -dev package is not present
+ifeq ($(USE_SO_SYMLINK),1)
+$(BUILD_DIR)/libsqlite3.so: | dirs
+	@ln -sf $(SYSTEM_SQLITE_SO) $@
+SYMLINK_DEP := $(BUILD_DIR)/libsqlite3.so
+endif
+
+# Embedded sqlite3.c compilation rule (if needed)
+$(BUILD_DIR)/sqlite3_c.o: $(WSQLITE_DIR)/src/sqlite3.c | dirs
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(DEPFLAGS) -c $< -o $@
+
+# Library module objects
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | dirs
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(DEPFLAGS) -c $< -o $@
+
+# Test objects
+$(BUILD_DIR)/%.o: %.cpp | dirs
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(DEPFLAGS) -c $< -o $@
+
+# Test binaries
+$(BUILD_DIR)/%$(BIN_EXT): $(BUILD_DIR)/%.o $(LIB_OBJS) $(EXTRA_OBJS) $(SYMLINK_DEP)
+	$(CXX) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
+
+test: $(TEST_BINS)
+	@echo "Running tests in $(BUILD_DIR)..."
+	@for bin in $(TEST_BINS); do \
+		echo "Executing $$bin:"; \
+		$$bin || exit 1; \
+	done
 
 clean:
-	-rm *.o
-	-rm $(tests)	
+	-rm -rf $(BUILD_DIR)
+	-rm -f *.o test1 test1.exe
+
+clean_all: clean
+	-rm -rf build wbuild
+
+-include $(DEPS)

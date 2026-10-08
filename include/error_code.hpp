@@ -6,12 +6,11 @@
  * A model for error codes (based on the <system_error> philosophy) 
  * for cxx_sqlite3.
  * 
- * @version 0.1.0 
+ * @version 1.0.0 
  * @author  Yoel Monsalve
  * @date    2023-11-11
  * 
- * (C) Copyright VDI Technologies, LLC. 2019-2023.
- * Tulsa, OK.
+ * Copyright (C) Yoel Monsalve 2019-2023.
  */
 
 #ifndef ERROR_CODE_HPP_
@@ -74,6 +73,22 @@ namespace cxx_sqlite3
         // custom error codes (apart from the sqlite3-API ones)
         //bad_bind_name = ...
     };
+}
+
+namespace std 
+{
+    /** 
+     * Register enum class error as ErrorConditionEnum 
+     * After this, compiler will recognize `cxx_sqlite3::error`
+     * as convertible to type `std::error_condition`.
+     */
+    template <>
+    struct is_error_condition_enum<cxx_sqlite3::error>
+        : public std::true_type {};
+}
+
+namespace cxx_sqlite3
+{
 
     /** Defining an error_category for this namespace */
     class error_category : public std::error_category
@@ -116,18 +131,19 @@ namespace cxx_sqlite3
         operator return_code_t() { return value(); }
         return_code_t operator()() { return value(); }
     };
-}
 
-namespace std 
-{
-    /** 
-     * Register enum class error as ErrorConditionEnum 
-     * After this, compiler will recognize `cxx_sqlite3::error`
-     * as convertible to type `std::error_condition`.
-     */
-    template <>
-    struct is_error_condition_enum<cxx_sqlite3::error>
-        : public true_type {};
+    inline bool operator==(const ErrorCode &ec, error ev) noexcept {
+        return ec.value() == static_cast<return_code_t>(ev);
+    }
+    inline bool operator==(error ev, const ErrorCode &ec) noexcept {
+        return ec.value() == static_cast<return_code_t>(ev);
+    }
+    inline bool operator!=(const ErrorCode &ec, error ev) noexcept {
+        return !(ec == ev);
+    }
+    inline bool operator!=(error ev, const ErrorCode &ec) noexcept {
+        return !(ev == ec);
+    }
 }
 
 #endif

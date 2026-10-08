@@ -5,12 +5,11 @@
  * 
  * Exception classes for cxx_sqlite3.
  * 
- * @version 0.1.0 
+ * @version 1.0.0 
  * @author  Yoel Monsalve
  * @date    2023-11-11
  * 
- * (C) Copyright VDI Technologies, LLC. 2019-2023.
- * Tulsa, OK.
+ * (C) Copyright Yoel Monsalve 2019-2026.
  */
 
 #ifndef EXCEPTION_HPP_

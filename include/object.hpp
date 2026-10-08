@@ -1,14 +1,13 @@
 /**
  * OBJECT.HPP
- * Define a common c++ like wrapper for the native types present in sqlite3 
- * (INTEGER, DOUBLE, etc).
+ * Define a common C++ wrapper and type system for SQLite data types
+ * (NULL, INTEGER, FLOAT, TEXT, BLOB).
  * 
- * @version 0.1.0 
+ * @version 1.0.0 
  * @author  Yoel Monsalve
  * @date    2023-11-11
  * 
- * (C) Copyright VDI Technologies, LLC. 2019-2023.
- * Tulsa - OK.
+ * (C) Copyright Yoel Monsalve 2019-2026.
  */
 
 #ifndef OBJECT_HPP_
@@ -18,230 +17,228 @@
 #include <cassert>
 #include <vector>
 #include <string>
+#include <cstdint>
+#include <utility>
 
 #include "cpp_version.hpp"
 
 namespace cxx_sqlite3
 {
+    using blob_t = std::vector<uint8_t>;
 
-/** 
- * Template generic object
- * 
- * The purpose of this class is to server as a common wrapper for any of the
- * native data types in sqlite3 (e.g., int, int64, text, etc).
- * 
- * For example, the declarations 
- * 
- * sqlite3::basic_object<int> O_SQLITE_INT;
- * sqlite3::basic_object<int> O_SQLITE_DOUBLE;
- * 
- * allow to store an INTEGER, and a DOUBLE sqlite3 value, respectively. 
- * 
- * The underlying data is dynamically allocated in runtime, and then released 
- * once the object is destroyed.
- */
-struct generic_object    // base class
-{
-    template<class T>
-    friend class basic_object;
-    
-    /* empty constructor */
-    generic_object() : pdata(nullptr) {}
-    /* from a pointer (shared pointer) */
-    generic_object(void * pdata_) : pdata(pdata_) {}
-    
-    #if 0
-    /* from <int> object */
-    generic_object(const basic_object<int> &OINT)
+    /** 
+     * generic_object
+     * 
+     * Serves as a dynamic value container for any native SQLite data type
+     * (NULL, INTEGER, FLOAT, TEXT, BLOB) with type-safe extraction.
+     */
+    class generic_object
     {
-        pdata = OINT.getpdata();
-    }
-    generic_object(basic_object<int> &&OINT)
+    public:
+        enum class type_tag {
+            null_t,
+            int_t,
+            float_t,
+            text_t,
+            blob_t
+        };
+
+    protected:
+        type_tag type_ = type_tag::null_t;
+        int64_t int_val_ = 0;
+        double double_val_ = 0.0;
+        std::string text_val_;
+        blob_t blob_val_;
+
+    public:
+        /* Default / NULL constructors */
+        generic_object() : type_(type_tag::null_t), int_val_(0), double_val_(0.0) {}
+        generic_object(std::nullptr_t) : type_(type_tag::null_t), int_val_(0), double_val_(0.0) {}
+        explicit generic_object(void *p) : type_(p ? type_tag::blob_t : type_tag::null_t), int_val_(0), double_val_(0.0) {}
+
+        /* Numeric constructors */
+        generic_object(int64_t val)
+            : type_(type_tag::int_t), int_val_(val), double_val_(static_cast<double>(val)) {}
+        generic_object(int val)
+            : generic_object(static_cast<int64_t>(val)) {}
+        generic_object(unsigned int val)
+            : generic_object(static_cast<int64_t>(val)) {}
+        generic_object(unsigned long val)
+            : generic_object(static_cast<int64_t>(val)) {}
+        generic_object(unsigned long long val)
+            : generic_object(static_cast<int64_t>(val)) {}
+        generic_object(double val)
+            : type_(type_tag::float_t), int_val_(static_cast<int64_t>(val)), double_val_(val) {}
+        generic_object(float val)
+            : generic_object(static_cast<double>(val)) {}
+
+        /* Text constructors */
+        generic_object(const char *val)
+            : type_(val ? type_tag::text_t : type_tag::null_t),
+              int_val_(0), double_val_(0.0), text_val_(val ? val : "") {}
+        generic_object(const std::string &val)
+            : type_(type_tag::text_t), int_val_(0), double_val_(0.0), text_val_(val) {}
+        generic_object(std::string &&val)
+            : type_(type_tag::text_t), int_val_(0), double_val_(0.0), text_val_(std::move(val)) {}
+
+        /* Blob constructors */
+        generic_object(const blob_t &val)
+            : type_(type_tag::blob_t), int_val_(0), double_val_(0.0), blob_val_(val) {}
+        generic_object(blob_t &&val)
+            : type_(type_tag::blob_t), int_val_(0), double_val_(0.0), blob_val_(std::move(val)) {}
+        generic_object(const void *data, size_t size)
+            : type_(type_tag::blob_t), int_val_(0), double_val_(0.0) {
+            if (data && size > 0) {
+                const uint8_t *b = static_cast<const uint8_t *>(data);
+                blob_val_.assign(b, b + size);
+            }
+        }
+
+        virtual ~generic_object() = default;
+
+        /* State queries */
+        bool is_null() const noexcept { return type_ == type_tag::null_t; }
+        type_tag type() const noexcept { return type_; }
+
+        /* Conversions */
+        int64_t as_int() const {
+            if (type_ == type_tag::int_t) return int_val_;
+            if (type_ == type_tag::float_t) return static_cast<int64_t>(double_val_);
+            if (type_ == type_tag::text_t && !text_val_.empty()) {
+                try { return std::stoll(text_val_); } catch (...) { return 0; }
+            }
+            return 0;
+        }
+
+        double as_double() const {
+            if (type_ == type_tag::float_t) return double_val_;
+            if (type_ == type_tag::int_t) return static_cast<double>(int_val_);
+            if (type_ == type_tag::text_t && !text_val_.empty()) {
+                try { return std::stod(text_val_); } catch (...) { return 0.0; }
+            }
+            return 0.0;
+        }
+
+        std::string as_string() const {
+            if (type_ == type_tag::text_t) return text_val_;
+            if (type_ == type_tag::int_t) return std::to_string(int_val_);
+            if (type_ == type_tag::float_t) return std::to_string(double_val_);
+            if (type_ == type_tag::null_t) return "";
+            return std::string(blob_val_.begin(), blob_val_.end());
+        }
+
+        const blob_t &as_blob() const noexcept {
+            return blob_val_;
+        }
+
+        /* Type-safe template extraction */
+        template <typename T>
+        T as() const;
+
+        /* Ergonomic implicit conversions */
+        operator int() const { return static_cast<int>(as_int()); }
+        operator int64_t() const { return as_int(); }
+        operator double() const { return as_double(); }
+        operator float() const { return static_cast<float>(as_double()); }
+        operator std::string() const { return as_string(); }
+        operator blob_t() const { return as_blob(); }
+        operator bool() const {
+            return !is_null() && (as_int() != 0 || as_double() != 0.0 || !as_string().empty());
+        }
+
+        bool operator!() const { return !static_cast<bool>(*this); }
+
+        bool operator==(const generic_object &other) const {
+            if (type_ != other.type_) return false;
+            if (type_ == type_tag::null_t) return true;
+            if (type_ == type_tag::int_t) return int_val_ == other.int_val_;
+            if (type_ == type_tag::float_t) return double_val_ == other.double_val_;
+            if (type_ == type_tag::text_t) return text_val_ == other.text_val_;
+            return blob_val_ == other.blob_val_;
+        }
+        bool operator!=(const generic_object &other) const { return !(*this == other); }
+
+        friend std::ostream &operator<<(std::ostream &os, const generic_object &obj) {
+            if (obj.is_null()) return os << "NULL";
+            if (obj.type() == type_tag::int_t) return os << obj.as_int();
+            if (obj.type() == type_tag::float_t) return os << obj.as_double();
+            return os << obj.as_string();
+        }
+    };
+
+    /* Specializations for as<T>() */
+    template <> inline int generic_object::as<int>() const { return static_cast<int>(as_int()); }
+    template <> inline int64_t generic_object::as<int64_t>() const { return as_int(); }
+    template <> inline double generic_object::as<double>() const { return as_double(); }
+    template <> inline float generic_object::as<float>() const { return static_cast<float>(as_double()); }
+    template <> inline std::string generic_object::as<std::string>() const { return as_string(); }
+    template <> inline blob_t generic_object::as<blob_t>() const { return as_blob(); }
+    template <> inline bool generic_object::as<bool>() const { return static_cast<bool>(*this); }
+
+    /** Specialized NULL object */
+    struct null_object : public generic_object {
+        null_object() : generic_object(nullptr) {}
+    };
+    typedef null_object SQLITE3_ONULL;
+
+    /** Typed basic_object<T> wrapper maintaining author's API */
+    template <class T>
+    struct basic_object : public generic_object
     {
-        pdata = OINT.getpdata();
-        OINT.nullpdata();    // nullify internal pointer of stolen object
-    }
-    /* from <char> object */
-    generic_object(const basic_object<char> &OCHAR)
-    {
-        pdata = OCHAR.getpdata();
-    }
-    generic_object(basic_object<char> &&OCHAR)
-    {
-        pdata = OCHAR.getpdata();
-        OCHAR.nullpdata();    // nullify internal pointer of stolen object
-    }
-    #endif
+        using value_type = T;
+        using type = basic_object;
 
-    using default_type = char;
+        basic_object() : generic_object() {}
+        basic_object(const T &v) : generic_object(v) {}
+        basic_object(T &&v) : generic_object(std::move(v)) {}
+        basic_object(const char *s) : generic_object(s) {}
+        explicit basic_object(const generic_object &o) : generic_object(o) {}
+        explicit basic_object(generic_object &&o) : generic_object(std::move(o)) {}
 
-    /* virtual function, for convenience */
-    virtual void getvalue(void *ptr) { }
+        T value() const { return as<T>(); }
+        T operator()() const { return as<T>(); }
+        operator T() const { return as<T>(); }
 
-protected:
-    void *pdata = nullptr;    // hidden data
-};
-
-#define BASIC_OBJECT_OVERLOAD_BUILTIN_OPERATOR(op,rtype) rtype operator op(const value_type &v) const { return *(T *)(pdata) op v; }
-#define BASIC_OBJECT_OVERLOAD_OPERATOR(op, rtype) rtype operator op(const basic_object<value_type> &other) const { return *(T *)(pdata) op *(T *)(other.pdata); }
-
-// this defines a quick way to access the actual value stored
-#define data_value__ (*(value_type *)pdata)
-
-/* specialized (T-typed) class from (non-typed) generic object */
-template<class T>
-struct basic_object : public generic_object
-{
-    using value_type = T;          // my stored type: allows syntax basic_object<T>::value_type
-    using type = basic_object;     // my own type: allows syntax basic_object<T>::type (=T)
-
-    /* initializer constructor */
-    basic_object(const value_type &v)
-    {
-        assert( (pdata = new value_type) != nullptr );
-        *(T *)pdata = v;
-    }
-    /* initializer constructor (with a rv-qualified value)*/
-    basic_object(value_type&& v)
-    {
-        assert( (pdata = new value_type) != nullptr );
-        *(T *)pdata = v;    /* as v is rv-qualified, the compiler might take
-                             * some advantage of that, at this assignment */
-    }
-    /* destructor */
-    ~basic_object() { std::cout<<"Destructor called\n"; delete (value_type *)pdata; }
-
-    /* building a basic_object from a generic_object */
-    basic_object(const generic_object &o)
-    {
-        assert( (pdata = new value_type) != nullptr );
-        *(T *)pdata = *(T *)o.pdata;
-    }
-    basic_object(generic_object &&o)
-    {
-        pdata = o.pdata;
-        o.pdata = nullptr;
-    }
-
-    /* Rule of Three */
-    /* copy constructor */
-    basic_object(const basic_object<value_type> &o)
-    {
-        assert( (pdata = new value_type) != nullptr );
-        *(T *)pdata = *(T *)o.pdata;
-    }
-    /* rvalue constructor */
-    basic_object(basic_object<value_type> &&o)
-    {
-        pdata = o.pdata;
-        o.pdata = nullptr;
-    }
-    /* swap */
-    void swap(const basic_object<value_type> &other)
-    {
-        T tmp;
-        tmp = *(T *)pdata;
-        *(T *)pdata = *((T *)other.pdata);
-        *((T *)other.pdata) = tmp;
-    }
-    /* assignment */
-    basic_object &operator=(basic_object<value_type> other) {
-        swap(other);
-        return *this;
-    }
-
-    /* explicitly accessing the value (it is the same as (value_type)basic_object) */
-    value_type value() const noexcept { return data_value__; }
-    value_type operator()() const noexcept { return data_value__; }
-
-    /* static cast to value_type */
-    operator value_type() const noexcept { return *(value_type *)pdata; }
-
-    /* overriding the virtual version */
-    virtual void getvalue(void *ptr) { 
-        *(T *)ptr = *(T *)pdata;
-    }
-
-    /* not operator */
-    bool operator!() { return !(this->value()); }
-
-    /* overload built-in operators  (==, >, <, etc...) for (basic_object<T>, basic_object<T>) */
-    /*bool operator==(const basic_object<value_type> &other) const
-    { return *(T *)(pdata) == *(T *)(other.pdata); }*/
-    BASIC_OBJECT_OVERLOAD_OPERATOR(== , bool)
-    BASIC_OBJECT_OVERLOAD_OPERATOR(!= , bool)
-    BASIC_OBJECT_OVERLOAD_OPERATOR(> , bool)
-    BASIC_OBJECT_OVERLOAD_OPERATOR(< , bool)
-    BASIC_OBJECT_OVERLOAD_OPERATOR(>= , bool)
-    BASIC_OBJECT_OVERLOAD_OPERATOR(<= , bool)
-
-    /* overload built-in operators (==, >, <, etc...) for (basic_object<T>, T) */
-    BASIC_OBJECT_OVERLOAD_BUILTIN_OPERATOR(== , bool)
-    BASIC_OBJECT_OVERLOAD_BUILTIN_OPERATOR(!= , bool)
-    BASIC_OBJECT_OVERLOAD_BUILTIN_OPERATOR(> , bool)
-    BASIC_OBJECT_OVERLOAD_BUILTIN_OPERATOR(< , bool)
-    BASIC_OBJECT_OVERLOAD_BUILTIN_OPERATOR(>= , bool)
-    BASIC_OBJECT_OVERLOAD_BUILTIN_OPERATOR(<= , bool)
-    // TODO: more operators ...
-
-    /* increment and decrement operators (supposed they are actually defined 
-     * for the underlying value_type) */
-    basic_object<value_type> &operator++() { 
-        ++data_value__; 
-        return *this; 
-    }
-    basic_object<value_type> operator++(int) { 
-        basic_object<value_type> former(*this);
-        operator++(); 
-        return former;
-    }
-    basic_object<value_type> &operator--() { 
-        --data_value__; 
-        return *this; 
-    }
-    basic_object<value_type> operator--(int) { 
-        basic_object<value_type> former(*this);
-        operator--(); 
-        return former;
-    }
-    basic_object<value_type> &operator+=(value_type inc) 
-    {
-        data_value__ += inc;
-        return *this;
-    }
-    basic_object<value_type> &operator-=(value_type dec) 
-    {
-        data_value__ -= dec;
-        return *this;
-    }
-
-    /* downcast to generic object (without type) .... not needed */
-    //operator generic_object() const noexcept { return generic_object(pdata); }
-
-    /* public access to internal pointer */
-    void *getpdata() const { return pdata; }
-    void nullpdata() { pdata = nullptr; }
-
-//    private:
-    //void *pdata = nullptr;    // hidden data
-};
-#undef BASIC_OBJECT_OVERLOAD_BUILTIN_OPERATOR
-#undef BASIC_OBJECT_OVERLOAD_OPERATOR
-#undef data_value__
+        basic_object &operator++() {
+            int_val_++;
+            double_val_ = static_cast<double>(int_val_);
+            return *this;
+        }
+        basic_object operator++(int) {
+            basic_object copy(*this);
+            ++(*this);
+            return copy;
+        }
+        basic_object &operator--() {
+            int_val_--;
+            double_val_ = static_cast<double>(int_val_);
+            return *this;
+        }
+        basic_object operator--(int) {
+            basic_object copy(*this);
+            --(*this);
+            return copy;
+        }
+        basic_object &operator+=(T inc) {
+            int_val_ += static_cast<int64_t>(inc);
+            double_val_ += static_cast<double>(inc);
+            return *this;
+        }
+        basic_object &operator-=(T dec) {
+            int_val_ -= static_cast<int64_t>(dec);
+            double_val_ -= static_cast<double>(dec);
+            return *this;
+        }
+    };
 }
 
-/* overloading std::swap for `basic_object` */
-template<class T>
-void std::swap(cxx_sqlite3::basic_object<T> &O1, cxx_sqlite3::basic_object<T> &O2) {
-    O1.swap(O2);
-}
-
-typedef cxx_sqlite3::basic_object<int> SQLITE3_OINT;           // equivalent to sqlite3-like INTEGER
+typedef cxx_sqlite3::basic_object<int> SQLITE3_OINT;           // equivalent to sqlite3 INTEGER
 typedef cxx_sqlite3::basic_object<char> SQLITE3_OCHAR;
 typedef cxx_sqlite3::basic_object<float> SQLITE3_OFLOAT;
-typedef cxx_sqlite3::basic_object<double> SQLITE3_ODOUBLE;     // equivalent to sqlite3-like DOUBLE
-typedef cxx_sqlite3::basic_object<char *> SQLITE3_OTEXT;       // equivalent to sqlite3-like TEXT
-typedef cxx_sqlite3::basic_object<const unsigned char *> SQLITE3_OCTEXT;
-typedef cxx_sqlite3::basic_object<std::string> SQLITE3_OSTRING;    // another equivalent to sqlite3-like TEXT
+typedef cxx_sqlite3::basic_object<double> SQLITE3_ODOUBLE;     // equivalent to sqlite3 DOUBLE/REAL
+typedef cxx_sqlite3::basic_object<std::string> SQLITE3_OTEXT;  // equivalent to sqlite3 TEXT
+typedef cxx_sqlite3::basic_object<std::string> SQLITE3_OSTRING;
+typedef cxx_sqlite3::basic_object<cxx_sqlite3::blob_t> SQLITE3_OBLOB; // equivalent to sqlite3 BLOB
 typedef cxx_sqlite3::generic_object SQLITE3_OGEN;
+
 #endif

@@ -2,12 +2,11 @@
  * This is an attempt to produce a modern C++ "throw-version" 
  * from an existing rc-based, C-style function.
  * 
- * @version 0.1.0 
+ * @version 1.0.0
  * @author  Yoel Monsalve
  * @date    2023-11-13
  * 
- * Copyright (C) VDI Technologies, LLC. 2019-2023.
- * Tulsa - OK.
+ * Copyright (C) Yoel Monsalve, 2019-2026.-
  */
 
 /**
@@ -37,14 +36,14 @@
  * ```
  * rc = call_throwable(fn, 0, e, 1, -1);   // OK,  rc = 0
  * //                      ^
- * //                      `~~~~~ return code OK
+ * //                      `~~~~~ OK return code (on success)
  * rc = call_throwable(fn, 0, e, 1,  2);   // fail 
  * ```
  * the first call will not throw, as the returned value is fn(1, -1) == 0. 
  * The second will fail, as fn(1, 2) = 3 != 0, and will throw the provided
  * exception e;
  * 
- * [2] With the macros style
+ * [2] With macro-style
  * 
  * ```
  * int rc, 
@@ -114,7 +113,7 @@ ReturnType call_throwable(ReturnType(*fn)(ArgTypes... args),
  */
 #define TRY_OR_THROW__(fn, args, rc, rc_ok, e) \
 if ((rc = fn args) != rc_ok) throw e;
-
+/* this variant does not assign the return value to `rc` */
 #define TRY_OR_THROW_NO_RC__(fn, args, rc_ok, e) \
 if ((fn args) != rc_ok) throw e;
 

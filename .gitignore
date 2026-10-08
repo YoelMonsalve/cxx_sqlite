@@ -10,3 +10,7 @@ wbuild/
 *.swp
 *.swo
 *~
+
+# legacy code
+legacy/
+git-command.sh

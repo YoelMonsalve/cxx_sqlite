@@ -217,6 +217,24 @@ TEST_CASE("Variadic Parameter Binding")
         REQUIRE(read_bio[0] == 0x01);
         REQUIRE(read_bio[4] == 0x05);
     }
+
+    SECTION("Vector column IDs binding style: execute(sql, vector<col_id_t>, vals...)")
+    {
+        db.execute("INSERT INTO users (id, name, salary) VALUES (:id, :name, :sal);",
+                   std::vector<col_id_t>{":id", ":name", ":sal"},
+                   500, "Eve", 12000.50);
+
+        statement verify = db.prepare_statement("SELECT name, salary FROM users WHERE id = 500;");
+        row r = verify.fetch_row();
+        REQUIRE(r["name"].as<std::string>() == "Eve");
+        REQUIRE(r["salary"].as<double>() == 12000.50);
+    }
+
+    SECTION("Tabular output helper (command2)")
+    {
+        ErrorCode ec = db.command2("SELECT id, name, salary FROM users WHERE id = 500;");
+        REQUIRE(ec == error::ok);
+    }
 }
 
 /* ========================================================================= */

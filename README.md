@@ -133,6 +133,33 @@ for (const auto &row : db.query("SELECT id, name, balance FROM users ORDER BY id
 }
 ```
 
+### 6. Object-Relational Mapping & Strongly-Typed Queries (v1.2)
+
+```cpp
+struct Employee {
+    int id;
+    std::string name;
+    double salary;
+    std::optional<std::string> email;
+};
+
+// Map struct fields without intrusive boilerplate
+CXX_SQLITE3_DEFINE_TYPE_NON_INTRUSIVE(Employee, id, name, salary, email)
+
+// 1. Direct struct insertion via db.execute
+Employee new_hire{101, "Alice", 9200.0, "alice@company.com"};
+db.execute("INSERT INTO employees VALUES (:id, :name, :salary, :email);", new_hire);
+
+// 2. Fetch all matching rows directly into std::vector<Employee>
+std::vector<Employee> team = db.query_as<Employee>("SELECT * FROM employees WHERE salary > ?", 5000.0);
+
+// 3. Query a single record as std::optional<Employee>
+std::optional<Employee> emp = db.query_one<Employee>("SELECT * FROM employees WHERE id = ?", 101);
+if (emp) {
+    std::cout << "Found employee: " << emp->name << " ($" << emp->salary << ")\n";
+}
+```
+
 ---
 
 ## Building and Testing

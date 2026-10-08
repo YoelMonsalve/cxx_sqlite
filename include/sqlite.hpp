@@ -34,6 +34,7 @@
 #include "basic_types.hpp"
 #include "functions.hpp"
 #include "object.hpp"
+#include "serializer.hpp"
 #include "error_code.hpp"
 #include "exception.hpp"
 #include "throwable.hpp"
@@ -196,17 +197,41 @@ namespace cxx_sqlite3
         }
 
         /**
+         * Object extraction: row.as<User>()
+         * Dispatches via ADL from_sqlite(row, val).
+         */
+        template <typename T>
+        T as() const
+        {
+            if constexpr (detail::has_from_sqlite<T>::value) {
+                T obj{};
+                adl_serializer<T>::from_sqlite(*this, obj);
+                return obj;
+            } else if constexpr (std::is_default_constructible_v<T>) {
+                if (this->size() == 1) {
+                    return (*this)[size_t(0)].template as<T>();
+                }
+                T obj{};
+                adl_serializer<T>::from_sqlite(*this, obj);
+                return obj;
+            } else {
+                static_assert(detail::has_from_sqlite<T>::value,
+                    "cxx_sqlite3: Type does not define from_sqlite(const row&, T&) or CXX_SQLITE3_DEFINE_TYPE_NON_INTRUSIVE");
+            }
+        }
+
+        /**
          * Tuple deconstruction: row.as<std::tuple<int, string, double>>()
          * or row.as<int, string, double>()
          */
-        template <typename... Types>
-        std::tuple<Types...> as() const
+        template <typename T1, typename T2, typename... Rest>
+        std::tuple<T1, T2, Rest...> as() const
         {
-            constexpr std::size_t N = sizeof...(Types);
+            constexpr std::size_t N = 2 + sizeof...(Rest);
             if (this->size() < N) {
                 throw exception_column("row has fewer columns than requested tuple size");
             }
-            return detail::tuple_from_row_impl<std::tuple<Types...>>(
+            return detail::tuple_from_row_impl<std::tuple<T1, T2, Rest...>>(
                 *this, std::make_index_sequence<N>{}
             );
         }
@@ -571,6 +596,27 @@ namespace cxx_sqlite3
                 }
             }
             return (int)error::ok;
+        }
+
+        /* Struct / Object binding via ADL to_sqlite */
+        template <typename T, typename std::enable_if_t<detail::has_to_sqlite<T>::value, int> = 0>
+        ErrorCode bind(const T &val)
+        {
+            to_sqlite(*this, val);
+            return rc_;
+        }
+
+        /* Single positional scalar value binding (binds to parameter index 1) */
+        template <typename T, typename std::enable_if_t<!detail::has_to_sqlite<T>::value &&
+                                                        !std::is_same_v<std::decay_t<T>, const char*> &&
+                                                        !std::is_same_v<std::decay_t<T>, std::string>, int> = 0>
+        ErrorCode bind(const T &val)
+        {
+            rc_ = bind_one(1, val);
+            if (rc_ != int(error::ok)) {
+                throw exception_bind(errmsg());
+            }
+            return rc_;
         }
 
         /* Alternating name-value variadic binding: bind(col_1, val_1, col_2, val_2, ...) */
@@ -1149,6 +1195,22 @@ namespace cxx_sqlite3
             execute(sql.c_str(), col1, val1, std::forward<VarTypes>(args)...);
         }
 
+        /* Object / Struct execute: db.execute(sql, user_obj) */
+        template <class T, typename std::enable_if_t<detail::has_to_sqlite<T>::value, int> = 0>
+        void execute(const char *sql, const T &val)
+        {
+            if (conn == nullptr) throw exception("database connection is closed");
+            statement temp(conn);
+            temp.prepare(sql);
+            temp.bind(val);
+            temp.step();
+        }
+        template <class T, typename std::enable_if_t<detail::has_to_sqlite<T>::value, int> = 0>
+        void execute(const string &sql, const T &val)
+        {
+            execute(sql.c_str(), val);
+        }
+
         /* Convenient exec alias */
         template <class... Args>
         void exec(Args&&... args)
@@ -1176,6 +1238,49 @@ namespace cxx_sqlite3
         statement query(const string &sql)
         {
             return prepare_statement(sql);
+        }
+
+        /**
+         * Strongly-typed query returning std::vector<T> of mapped structs/objects:
+         * std::vector<User> users = db.query_as<User>("SELECT * FROM users WHERE salary > ?", 5000.0);
+         */
+        template <typename T, typename... Args>
+        std::vector<T> query_as(const char *sql, Args&&... args)
+        {
+            std::vector<T> results;
+            statement st = query(sql, std::forward<Args>(args)...);
+            for (const auto &r : st) {
+                results.push_back(r.template as<T>());
+            }
+            return results;
+        }
+
+        template <typename T, typename... Args>
+        std::vector<T> query_as(const std::string &sql, Args&&... args)
+        {
+            return query_as<T>(sql.c_str(), std::forward<Args>(args)...);
+        }
+
+        /**
+         * Fetch first row as optional object:
+         * std::optional<User> u = db.query_one<User>("SELECT * FROM users WHERE id = ?", 1);
+         */
+        template <typename T, typename... Args>
+        std::optional<T> query_one(const char *sql, Args&&... args)
+        {
+            statement st = query(sql, std::forward<Args>(args)...);
+            ErrorCode ec;
+            row r = st.fetch_row(ec);
+            if (ec == error::row) {
+                return r.template as<T>();
+            }
+            return std::nullopt;
+        }
+
+        template <typename T, typename... Args>
+        std::optional<T> query_one(const std::string &sql, Args&&... args)
+        {
+            return query_one<T>(sql.c_str(), std::forward<Args>(args)...);
         }
 
         /**

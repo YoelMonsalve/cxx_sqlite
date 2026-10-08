@@ -410,6 +410,96 @@ TEST_CASE("RAII Transactions")
 }
 
 /* ========================================================================= */
+/* Test Case 6: Object Serialization & Strongly Typed Queries                */
+/* ========================================================================= */
+
+namespace test_models {
+    struct Employee {
+        int id;
+        std::string name;
+        double salary;
+        std::optional<std::string> email;
+    };
+
+    // Non-intrusive macro mapping
+    CXX_SQLITE3_DEFINE_TYPE_NON_INTRUSIVE(Employee, id, name, salary, email)
+
+    struct CustomTag {
+        std::string label;
+        int level;
+    };
+
+    // Manual ADL free functions mapping
+    inline void from_sqlite(const cxx_sqlite3::row &r, CustomTag &t) {
+        t.label = r["label"].as<std::string>();
+        t.level = r["level"].as<int>();
+    }
+    inline void to_sqlite(cxx_sqlite3::statement &st, const CustomTag &t) {
+        st.bind(":label", t.label, ":level", t.level);
+    }
+}
+
+TEST_CASE("Object Serialization and Strongly Typed Queries")
+{
+    database db(":memory:");
+    db.exec("CREATE TABLE employees (id INTEGER PRIMARY KEY, name TEXT, salary REAL, email TEXT);");
+
+    SECTION("Binding macro-defined struct directly via db.execute")
+    {
+        test_models::Employee alice{1, "Alice", 9200.0, "alice@example.com"};
+        db.execute("INSERT INTO employees VALUES (:id, :name, :salary, :email);", alice);
+
+        test_models::Employee bob{2, "Bob", 6500.0, std::nullopt};
+        db.execute("INSERT INTO employees VALUES (:id, :name, :salary, :email);", bob);
+
+        statement verify = db.prepare_statement("SELECT * FROM employees WHERE id = 1;");
+        row r = verify.fetch_row();
+
+        // Extracting row into native struct
+        test_models::Employee read_alice = r.as<test_models::Employee>();
+        REQUIRE(read_alice.id == 1);
+        REQUIRE(read_alice.name == "Alice");
+        REQUIRE(read_alice.salary == 9200.0);
+        REQUIRE(read_alice.email.has_value());
+        REQUIRE(*read_alice.email == "alice@example.com");
+    }
+
+    SECTION("Strongly typed query_as<T>() returning std::vector<T>")
+    {
+        // Querying all employees directly into std::vector<Employee>
+        std::vector<test_models::Employee> staff = 
+            db.query_as<test_models::Employee>("SELECT * FROM employees ORDER BY id ASC;");
+
+        REQUIRE(staff.size() == 2);
+        REQUIRE(staff[0].name == "Alice");
+        REQUIRE(staff[1].name == "Bob");
+        REQUIRE(!staff[1].email.has_value());
+    }
+
+    SECTION("Strongly typed query_one<T>() returning std::optional<T>")
+    {
+        auto opt_emp = db.query_one<test_models::Employee>("SELECT * FROM employees WHERE id = ?", 1);
+        REQUIRE(opt_emp.has_value());
+        REQUIRE(opt_emp->name == "Alice");
+
+        auto opt_missing = db.query_one<test_models::Employee>("SELECT * FROM employees WHERE id = ?", 999);
+        REQUIRE(!opt_missing.has_value());
+    }
+
+    SECTION("Manual ADL struct mapping (from_sqlite / to_sqlite)")
+    {
+        db.exec("CREATE TABLE tags (label TEXT, level INTEGER);");
+        test_models::CustomTag tag{"admin", 5};
+        db.execute("INSERT INTO tags VALUES (:label, :level);", tag);
+
+        auto fetched = db.query_one<test_models::CustomTag>("SELECT * FROM tags WHERE level = 5;");
+        REQUIRE(fetched.has_value());
+        REQUIRE(fetched->label == "admin");
+        REQUIRE(fetched->level == 5);
+    }
+}
+
+/* ========================================================================= */
 /* Test Runner Main                                                          */
 /* ========================================================================= */
 int main()

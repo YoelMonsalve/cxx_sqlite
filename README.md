@@ -130,23 +130,29 @@ if (!r.is_null("bio")) {
 - Linux / POSIX: System SQLite (`libsqlite3-dev` / `sqlite3`)
 - Windows: Standalone `wsqlite/` distribution included with this repository
 
-### Build Commands
+### Build & Test Commands
 
 ```bash
-# Compile library and default test target
+# Compile library and run all tests
 make
 
-# Run the complete test suite
+# Run the complete test suite (both bare and Catch2 tests)
 make test
+
+# Run specifically the Catch2-style test suite (tests/ctest/)
+make test_catch2
+
+# Run specifically the bare RAII test (tests/test_raii.cpp)
+make test_raii
 
 # Clean build artifacts
 make clean
 ```
 
-The test runner automatically executes:
-- `build/test1`: Core legacy and CLI demonstration.
-- `build/test_raii`: RAII statement move semantics and transaction rollback/commit verification.
-- `build/test_suite`: Comprehensive Catch2-style test suite verifying typing, variadic bindings, range-for queries, and column safety.
+### Test Folder Structure
+- [`tests/ctest/`](tests/ctest): Framework-based test suites (such as [`test_suite.cpp`](tests/ctest/test_suite.cpp), using the lightweight Catch2-style `TEST_CASE` / `REQUIRE` / `SECTION` runner).
+- [`tests/`](tests): Pure standalone C++ tests without test frameworks (such as [`test_raii.cpp`](tests/test_raii.cpp)).
+- Root (`test1.cpp`): Legacy/introductory example application.
 
 ---
 

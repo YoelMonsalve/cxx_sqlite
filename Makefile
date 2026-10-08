@@ -47,8 +47,8 @@ CFLAGS   ?= -std=c99 -Wall -Wextra -O2
 DEPFLAGS = -MMD -MP
 
 # Source files and targets
-LIB_SRCS := $(SRC_DIR)/sqlite.cpp
-LIB_OBJS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(LIB_SRCS))
+LIB_SRCS     := $(SRC_DIR)/sqlite.cpp
+LIB_OBJS     := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(LIB_SRCS))
 
 # If using embedded SQLite C source fallback
 ifeq ($(USE_EMBEDDED_SQLITE),1)
@@ -56,14 +56,27 @@ ifeq ($(USE_EMBEDDED_SQLITE),1)
     EXTRA_OBJS   += $(SQLITE_C_OBJ)
 endif
 
-TEST_SRCS := $(sort $(wildcard test*.cpp))
-TEST_BINS := $(patsubst %.cpp,$(BUILD_DIR)/%$(BIN_EXT),$(TEST_SRCS))
+# Test directories and sources
+TESTS_DIR    := tests
+CTEST_DIR    := $(TESTS_DIR)/ctest
+
+# Test sources discovery (tests/ctest/*.cpp, tests/*.cpp, and root test*.cpp)
+CTEST_SRCS   := $(sort $(wildcard $(CTEST_DIR)/*.cpp))
+BARE_SRCS    := $(sort $(wildcard $(TESTS_DIR)/*.cpp))
+ROOT_SRCS    := $(sort $(wildcard test*.cpp))
+
+CTEST_BINS   := $(patsubst $(CTEST_DIR)/%.cpp,$(BUILD_DIR)/%$(BIN_EXT),$(CTEST_SRCS))
+BARE_BINS    := $(patsubst $(TESTS_DIR)/%.cpp,$(BUILD_DIR)/%$(BIN_EXT),$(BARE_SRCS))
+ROOT_BINS    := $(patsubst %.cpp,$(BUILD_DIR)/%$(BIN_EXT),$(ROOT_SRCS))
+
+TEST_BINS    := $(sort $(CTEST_BINS) $(BARE_BINS) $(ROOT_BINS))
 
 # All object files for dependency generation
-ALL_OBJS := $(LIB_OBJS) $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(TEST_SRCS)) $(EXTRA_OBJS)
-DEPS     := $(ALL_OBJS:.o=.d)
+TEST_OBJS := $(patsubst $(BUILD_DIR)/%$(BIN_EXT),$(BUILD_DIR)/%.o,$(TEST_BINS))
+ALL_OBJS  := $(LIB_OBJS) $(TEST_OBJS) $(EXTRA_OBJS)
+DEPS      := $(ALL_OBJS:.o=.d)
 
-.PHONY: all test clean clean_all dirs
+.PHONY: all test test_catch2 test_raii clean clean_all dirs
 .SECONDARY:
 
 .DEFAULT_GOAL := all
@@ -88,7 +101,13 @@ $(BUILD_DIR)/sqlite3_c.o: $(WSQLITE_DIR)/src/sqlite3.c | dirs
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp | dirs
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(DEPFLAGS) -c $< -o $@
 
-# Test objects
+# Test objects from tests/ctest/, tests/, or root
+$(BUILD_DIR)/%.o: $(CTEST_DIR)/%.cpp | dirs
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: $(TESTS_DIR)/%.cpp | dirs
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(DEPFLAGS) -c $< -o $@
+
 $(BUILD_DIR)/%.o: %.cpp | dirs
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(DEPFLAGS) -c $< -o $@
 
@@ -102,6 +121,19 @@ test: $(TEST_BINS)
 		echo "Executing $$bin:"; \
 		$$bin || exit 1; \
 	done
+
+# Dedicated target to run Catch2/ctest suite specifically
+test_catch2: $(CTEST_BINS)
+	@echo "Running Catch2-style test suite(s)..."
+	@for bin in $(CTEST_BINS); do \
+		echo "Executing $$bin:"; \
+		$$bin || exit 1; \
+	done
+
+# Dedicated target to run bare RAII test specifically
+test_raii: $(BUILD_DIR)/test_raii$(BIN_EXT)
+	@echo "Executing $(BUILD_DIR)/test_raii$(BIN_EXT):"
+	@$(BUILD_DIR)/test_raii$(BIN_EXT)
 
 clean:
 	-rm -rf $(BUILD_DIR)

@@ -21,6 +21,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <string_view>
 #include <cstdint>
 #include <utility>
 #include <variant>
@@ -34,6 +35,14 @@ namespace cxx_sqlite3
 {
     using blob_t = std::vector<uint8_t>;
     using null_t = std::nullptr_t;
+
+    /* Semantics valid for C++14/C++17.
+     * Comment if you are using C++20.
+     */
+    template <typename T>
+    using remove_cvref_t = std::remove_cv_t<std::remove_reference_t<T>>;
+    /* C++20 */
+    //using std::remove_cvref_t;
 
     /**
      * Storage classes supported natively by SQLite.
@@ -73,17 +82,22 @@ namespace cxx_sqlite3
         generic_value(std::nullptr_t) noexcept : storage_(nullptr) {}
         explicit generic_value(void *p) : storage_(p ? value_storage(blob_t{}) : value_storage(nullptr)) {}
 
-        /* Numeric constructors */
-        generic_value(int64_t val) noexcept : storage_(val) {}
-        generic_value(int val) noexcept : storage_(static_cast<int64_t>(val)) {}
-        generic_value(unsigned int val) noexcept : storage_(static_cast<int64_t>(val)) {}
-        generic_value(unsigned long val) noexcept : storage_(static_cast<int64_t>(val)) {}
-        generic_value(unsigned long long val) noexcept : storage_(static_cast<int64_t>(val)) {}
-        generic_value(double val) noexcept : storage_(val) {}
-        generic_value(float val) noexcept : storage_(static_cast<double>(val)) {}
+        /* Numeric and enumeration constructors (consolidated via traits) */
+        template <typename T, typename = std::enable_if_t<std::is_arithmetic_v<T> || std::is_enum_v<T>>>
+        generic_value(T val) noexcept {
+            if constexpr (std::is_floating_point_v<T>) {
+                storage_ = static_cast<double>(val);
+            } else if constexpr (std::is_enum_v<T>) {
+                using Underlying = std::underlying_type_t<T>;
+                storage_ = static_cast<int64_t>(static_cast<Underlying>(val));
+            } else {
+                storage_ = static_cast<int64_t>(val);
+            }
+        }
 
         /* Text constructors */
         generic_value(const char *val) : storage_(val ? value_storage(std::string(val)) : value_storage(nullptr)) {}
+        generic_value(std::string_view val) : storage_(std::string(val)) {}
         generic_value(const std::string &val) : storage_(val) {}
         generic_value(std::string &&val) noexcept : storage_(std::move(val)) {}
 
@@ -112,10 +126,6 @@ namespace cxx_sqlite3
         virtual ~generic_value() = default;
 
         /* State and type inspection */
-        bool is_null() const noexcept {
-            return std::holds_alternative<null_t>(storage_);
-        }
-
         type_tag type() const noexcept {
             switch (storage_.index()) {
             case 0: return type_tag::null_t;
@@ -127,12 +137,16 @@ namespace cxx_sqlite3
             }
         }
 
+        bool is_null() const noexcept {
+            return type() == type_tag::null_t;
+        }
+
         const value_storage &storage() const noexcept { return storage_; }
 
         /* Coercion and conversion methods */
         int64_t as_int() const {
             return std::visit([](const auto &arg) -> int64_t {
-                using T = std::decay_t<decltype(arg)>;
+                using T = remove_cvref_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, null_t>) {
                     return 0;
                 } else if constexpr (std::is_same_v<T, int64_t>) {
@@ -149,7 +163,7 @@ namespace cxx_sqlite3
 
         double as_double() const {
             return std::visit([](const auto &arg) -> double {
-                using T = std::decay_t<decltype(arg)>;
+                using T = remove_cvref_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, null_t>) {
                     return 0.0;
                 } else if constexpr (std::is_same_v<T, int64_t>) {
@@ -164,9 +178,19 @@ namespace cxx_sqlite3
             }, storage_);
         }
 
+        /** 
+         *  @todo: --default case--
+         *  What happens if the current stored value is not
+         *  convertible to string?
+         *  Should it throw? 
+         *  ...
+         *  } else {
+         *      throw std::bad_variant_access();
+         *  }
+         */
         std::string as_string() const {
             return std::visit([](const auto &arg) -> std::string {
-                using T = std::decay_t<decltype(arg)>;
+                using T = remove_cvref_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, null_t>) {
                     return "";
                 } else if constexpr (std::is_same_v<T, int64_t>) {
@@ -179,6 +203,14 @@ namespace cxx_sqlite3
                     return std::string(arg.begin(), arg.end());
                 }
             }, storage_);
+        }
+
+        std::string_view as_string_view() const {
+            if (const auto *p = std::get_if<std::string>(&storage_)) {
+                return *p;
+            }
+            //return {};
+            throw std::bad_variant_access();
         }
 
         const blob_t &as_blob() const {
@@ -199,6 +231,7 @@ namespace cxx_sqlite3
         operator double() const { return as_double(); }
         operator float() const { return static_cast<float>(as_double()); }
         operator std::string() const { return as_string(); }
+        operator std::string_view() const noexcept { return as_string_view(); }
         operator blob_t() const { return as_blob(); }
         operator bool() const {
             return !is_null() && (as_int() != 0 || as_double() != 0.0 || !as_string().empty());
@@ -225,37 +258,46 @@ namespace cxx_sqlite3
     /* Primary converter template */
     template <typename T, typename Enable = void>
     struct value_extractor {
-        static T extract(const generic_value &v) {
-            if constexpr (std::is_integral_v<T> && !std::is_same_v<T, bool>) {
-                return static_cast<T>(v.as_int());
-            } else if constexpr (std::is_floating_point_v<T>) {
-                return static_cast<T>(v.as_double());
-            } else if constexpr (std::is_same_v<T, std::string>) {
-                return v.as_string();
-            } else if constexpr (std::is_same_v<T, blob_t>) {
-                return v.as_blob();
-            } else if constexpr (std::is_same_v<T, bool>) {
+        using CleanT = remove_cvref_t<T>;
+
+        static CleanT extract(const generic_value &v) {
+            if constexpr (std::is_enum_v<CleanT>) {
+                using Underlying = std::underlying_type_t<CleanT>;
+                return static_cast<CleanT>(v.as<Underlying>());
+            } else if constexpr (std::is_integral_v<CleanT> && !std::is_same_v<CleanT, bool>) {
+                return static_cast<CleanT>(v.as_int());
+            } else if constexpr (std::is_same_v<CleanT, bool>) {
                 return static_cast<bool>(v);
+            } else if constexpr (std::is_floating_point_v<CleanT>) {
+                return static_cast<CleanT>(v.as_double());
+            } else if constexpr (std::is_same_v<CleanT, std::string>) {
+                return v.as_string();
+            } else if constexpr (std::is_same_v<CleanT, std::string_view>) {
+                return v.as_string_view();
+            } else if constexpr (std::is_same_v<CleanT, blob_t>) {
+                return v.as_blob();
             } else {
-                static_assert(!sizeof(T), "cxx_sqlite3: Unsupported type for generic_value::as<T>()");
+                static_assert(!sizeof(CleanT), "cxx_sqlite3: Unsupported type for generic_value::as<T>()");
             }
         }
     };
 
-    /* Specialization for std::optional<T> */
+    /* 
+     * Specialization for std::optional<T> 
+     * Supports casting `generic_value` to nullable types.
+     * */
     template <typename T>
     struct value_extractor<std::optional<T>> {
         static std::optional<T> extract(const generic_value &v) {
-            if (v.is_null()) {
-                return std::nullopt;
-            }
-            return v.as<T>();
+            return !(v.is_null()) ? 
+                std::optional<T>(v.as<T>()) : std::nullopt;
         }
     };
 
     template <typename T>
     inline T generic_value::as() const {
-        return value_extractor<T>::extract(*this);
+        using CleanT = remove_cvref_t<T>;
+        return static_cast<T>(value_extractor<CleanT>::extract(*this));
     }
 
     /** Specialized NULL object */
@@ -282,30 +324,44 @@ namespace cxx_sqlite3
         T operator()() const { return as<T>(); }
         operator T() const { return as<T>(); }
 
+        template <typename U = T, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
         basic_object &operator++() {
             storage_ = as_int() + 1;
             return *this;
         }
+        template <typename U = T, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
         basic_object operator++(int) {
             basic_object copy(*this);
             ++(*this);
             return copy;
         }
+        template <typename U = T, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
         basic_object &operator--() {
             storage_ = as_int() - 1;
             return *this;
         }
+        template <typename U = T, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
         basic_object operator--(int) {
             basic_object copy(*this);
             --(*this);
             return copy;
         }
+        template <typename U = T, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
         basic_object &operator+=(T inc) {
-            storage_ = as_int() + static_cast<int64_t>(inc);
+            if constexpr (std::is_floating_point_v<U>) {
+                storage_ = as_double() + static_cast<double>(inc);
+            } else {
+                storage_ = as_int() + static_cast<int64_t>(inc);
+            }
             return *this;
         }
+        template <typename U = T, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
         basic_object &operator-=(T dec) {
-            storage_ = as_int() - static_cast<int64_t>(dec);
+            if constexpr (std::is_floating_point_v<U>) {
+                storage_ = as_double() - static_cast<double>(dec);
+            } else {
+                storage_ = as_int() - static_cast<int64_t>(dec);
+            }
             return *this;
         }
     };

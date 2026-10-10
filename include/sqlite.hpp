@@ -105,7 +105,6 @@ namespace cxx_sqlite3
     using blob_t = generic_value::blob_t;
     using null_t = generic_value::null_t;
 
-
     /**
      * Utility function: make a `field` type, from an arbitrary value
     */

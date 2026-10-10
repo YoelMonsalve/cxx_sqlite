@@ -31,7 +31,10 @@ namespace cxx_sqlite3
     using std::vector;
     using std::tuple;
     
-    /** symbolic constants to identify sqlite3 native data types */
+    /** 
+     * symbolic constants to identify sqlite3 native data types 
+     * (these are integer constants, not types !)
+     */
     typedef int data_type_t;
     enum data_type : data_type_t {
         int_t    = SQLITE_INTEGER,

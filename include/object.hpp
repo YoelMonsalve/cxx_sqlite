@@ -139,8 +139,6 @@ namespace cxx_sqlite3
             }
         }
 
-        //bool is_arithmetic() { return std::get_if<&storage_>}
-
         virtual ~generic_value() = default;
 
         /* State and type inspection */
@@ -155,14 +153,21 @@ namespace cxx_sqlite3
             }
         }
 
-        bool is_null() const noexcept {
-            return type() == internal_type::null_t;
-        }
-
+        int index() const noexcept { return storage_.index(); }
+        
         const value_storage &storage() const noexcept { return storage_; }
 
+        /** Internal data type getters */
+        bool is_null() const noexcept { return type() == internal_type::null_t; }
+        bool is_int() const noexcept { return type() == internal_type::int_t; }
+        bool is_float() const noexcept { return type() == internal_type::float_t; }
+        bool is_text() const noexcept { return type() == internal_type::text_t; }
+        bool is_blob() const noexcept { return type() == internal_type::blob_t; }
+        bool is_numeric() const noexcept { return is_int() || is_float(); }
+
         /* Coercion and conversion methods */
-        int64_t as_int() const {
+        int_t 
+        as_int() const {
             return std::visit([](const auto &arg) -> int64_t {
                 using T = remove_cvref_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, null_t>) {
@@ -179,8 +184,9 @@ namespace cxx_sqlite3
             }, storage_);
         }
 
-        double as_double() const {
-            return std::visit([](const auto &arg) -> double {
+        double_t 
+        as_double() const {
+            return std::visit([](const auto &arg) -> double_t {
                 using T = remove_cvref_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, null_t>) {
                     return 0.0;
@@ -208,7 +214,8 @@ namespace cxx_sqlite3
          *     throw std::bad_variant_access();
          * }
          */
-        std::string as_string() const {
+        text_t
+        as_string() const {
             return std::visit([](const auto &arg) -> std::string {
                 using T = remove_cvref_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, null_t>) {
@@ -299,9 +306,7 @@ namespace cxx_sqlite3
     struct is_sqlite_bindable : std::false_type {};
 
     template <typename T>
-    struct is_sqlite_bindable<T, std::void_t<
-        decltype(generic_value(std::declval<T>()))
-    >> : std::true_type {};
+    struct is_sqlite_bindable<T, std::enable_if_t<std::is_constructible_v<generic_value, const T&>>> : std::true_type {} ;
 
     template <typename T>
     inline constexpr bool is_sqlite_bindable_v = is_sqlite_bindable<T>::value;
@@ -313,6 +318,18 @@ namespace cxx_sqlite3
      */
     template <typename T, typename = void>
     struct is_sqlite_extractable : std::false_type {};
+
+    /**
+     * Yoel
+     * @remark:   Let's see ..
+     * If I can create an object `general_value` from a value of type <T>
+     * (is_sqlite_bindable), then I can certainly extract a value of that
+     * same type from that object.
+     *
+     * So, either we repeat is_sqlite_extractable === is_sqlite_bindable,
+     * or we deprecate is_sqlite_extractable (and therefore 
+     * is_sqlite_value) at all.
+     */
 
     template <typename T>
     struct is_sqlite_extractable<T, std::void_t<

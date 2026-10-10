@@ -12,7 +12,7 @@
  *  5. RAII transactions (commit, rollback, auto-rollback on exception)
  * 
  * @version 1.0.0
- * (C) Copyright Yoel Monsalve 2019-2026.
+ * (C) Copyright Yoel Monsalve 2025-2026.
  */
 
 #include <iostream>
@@ -21,6 +21,7 @@
 #include <functional>
 #include <stdexcept>
 #include <cstdint>
+#include <type_traits>
 
 #include "sqlite.hpp"
 
@@ -88,7 +89,7 @@ TEST_CASE("Type System - generic_object and Conversions")
     {
         generic_object obj_null;
         REQUIRE(obj_null.is_null());
-        REQUIRE(obj_null.type() == generic_object::type_tag::null_t);
+        REQUIRE(obj_null.type() == generic_object::internal_type::null_t);
         REQUIRE(!obj_null);
 
         generic_object obj_null_ptr(nullptr);
@@ -102,7 +103,7 @@ TEST_CASE("Type System - generic_object and Conversions")
     {
         generic_object obj_int(42);
         REQUIRE(!obj_int.is_null());
-        REQUIRE(obj_int.type() == generic_object::type_tag::int_t);
+        REQUIRE(obj_int.type() == generic_object::internal_type::int_t);
         REQUIRE(obj_int.as<int>() == 42);
         REQUIRE(obj_int.as<int64_t>() == 42);
         REQUIRE(obj_int.as<double>() == 42.0);
@@ -115,7 +116,7 @@ TEST_CASE("Type System - generic_object and Conversions")
     {
         generic_object obj_double(3.14159);
         REQUIRE(!obj_double.is_null());
-        REQUIRE(obj_double.type() == generic_object::type_tag::float_t);
+        REQUIRE(obj_double.type() == generic_object::internal_type::float_t);
         REQUIRE(obj_double.as<double>() > 3.14);
         REQUIRE(obj_double.as<int>() == 3);
         REQUIRE(static_cast<double>(obj_double) > 3.14);
@@ -125,7 +126,7 @@ TEST_CASE("Type System - generic_object and Conversions")
     {
         generic_object obj_str("Hello World");
         REQUIRE(!obj_str.is_null());
-        REQUIRE(obj_str.type() == generic_object::type_tag::text_t);
+        REQUIRE(obj_str.type() == generic_object::internal_type::text_t);
         REQUIRE(obj_str.as<std::string>() == "Hello World");
         REQUIRE(static_cast<std::string>(obj_str) == "Hello World");
     }
@@ -135,7 +136,7 @@ TEST_CASE("Type System - generic_object and Conversions")
         std::vector<uint8_t> bytes = { 0xDE, 0xAD, 0xBE, 0xEF };
         generic_object obj_blob(bytes);
         REQUIRE(!obj_blob.is_null());
-        REQUIRE(obj_blob.type() == generic_object::type_tag::blob_t);
+        REQUIRE(obj_blob.type() == generic_object::internal_type::blob_t);
         
         blob_t extracted = obj_blob.as<blob_t>();
         REQUIRE(extracted.size() == 4);
@@ -172,6 +173,52 @@ TEST_CASE("Type System - generic_object and Conversions")
 
         SQLITE3_OTEXT str("sqlite3 wrapper");
         REQUIRE(str.value() == "sqlite3 wrapper");
+    }
+
+    /**
+     * Added by Yoel.- 2026-10-10.
+     */
+    SECTION("sqlite bindable")
+    {
+        /** Checks whether the type T is convertible to generic_value */
+        REQUIRE(is_sqlite_bindable<int>::value);    // C++14
+        REQUIRE(is_sqlite_bindable_v<int>);         // C++17
+
+        // and so on, for uint, long, ulong, float, double, ... etc, and null.
+        
+    }
+    SECTION("sqlite extractable")
+    {
+        /** Checks whether the type T can be extracted/converted from 
+         *  generic_value .
+         *  (opposite of bindable, so we check the same) */
+        REQUIRE(is_sqlite_extractable<int>::value);    // C++14
+        REQUIRE(is_sqlite_extractable_v<int>);         // C++17
+        // ...
+    }
+    /** does generic have an `is_arithmetic` trait ? */
+    SECTION("generic_value traits")
+    {
+        {
+            generic_value x1(3);        // int
+            //decltype(x1.as_int()) y = "hello";
+            REQUIRE( (std::is_same_v<decltype(x1.as_int()), int64_t>) );
+            REQUIRE( (std::is_same_v<decltype(x1.as<int>()), int64_t>) );
+            REQUIRE( (std::is_same_v<decltype((int)x1), int64_t>) );
+
+            CHECK(x1.as_int() == 3);
+            CHECK(x1.as<int>() == 3);
+            CHECK((int)x1 == 3);
+            CHECK(static_cast<int>(x1) == 3);
+            CHECK(x1.as_int() == x1.as<int>());
+
+            // is_arithmethic ?
+            /**cout << "is arithmetic? " << 
+                std::is_arithmetic<decltype(x1)>::value << std::endl;
+            */
+           
+
+        } // ... x1 goes out scope
     }
 }
 

@@ -33,9 +33,6 @@
 
 namespace cxx_sqlite3
 {
-    using blob_t = std::vector<uint8_t>;
-    using null_t = std::nullptr_t;
-
     /* Semantics valid for C++14/C++17.
      * Comment if you are using C++20.
      */
@@ -43,17 +40,6 @@ namespace cxx_sqlite3
     using remove_cvref_t = std::remove_cv_t<std::remove_reference_t<T>>;
     /* C++20 */
     //using std::remove_cvref_t;
-
-    /**
-     * Storage classes supported natively by SQLite.
-     */
-    using value_storage = std::variant<
-        null_t,         // 0: SQL NULL
-        int64_t,        // 1: SQL INTEGER
-        double,         // 2: SQL REAL / FLOAT
-        std::string,    // 3: SQL TEXT
-        blob_t          // 4: SQL BLOB
-    >;
 
     /**
      * generic_value
@@ -65,17 +51,47 @@ namespace cxx_sqlite3
     class generic_value
     {
     public:
-        enum class type_tag {
+        /** 
+         * Equivalence between human-comprehensible types, and internal
+         * representation used by SQLITE */
+        using int_t    = int64_t;
+        using bool_t   = int_t;     /* is this assuption correct ? */
+        using double_t = double;
+        using blob_t   = std::vector<uint8_t>;
+        using text_t   = std::string;
+        using null_t   = std::nullptr_t;
+        /* aliases */
+        using int_type    = int_t;
+        using bool_type   = bool_t;
+        using double_type = double_t;
+        using float_t     = double_t;
+        using float_type  = float_t;
+        using blob_type   = blob_t;
+        using text_type   = text_t;
+        using null_type   = null_t;
+        
+        enum class internal_type {
             null_t,
             int_t,
             float_t,
             text_t,
             blob_t
         };
-
+        
+        /**
+         * Storage classes supported natively by SQLite.
+         */
+        using value_storage = std::variant<
+            null_t,         // 0: SQL NULL
+            int_t,          // 1: SQL INTEGER
+            double_t,       // 2: SQL REAL / FLOAT
+            text_t,         // 3: SQL TEXT
+            blob_t          // 4: SQL BLOB
+        >;
+ 
     protected:
         value_storage storage_ = nullptr;
-
+    
     public:
         /* Default / NULL constructors */
         generic_value() noexcept : storage_(nullptr) {}
@@ -123,22 +139,24 @@ namespace cxx_sqlite3
             }
         }
 
+        //bool is_arithmetic() { return std::get_if<&storage_>}
+
         virtual ~generic_value() = default;
 
         /* State and type inspection */
-        type_tag type() const noexcept {
+        internal_type type() const noexcept {
             switch (storage_.index()) {
-            case 0: return type_tag::null_t;
-            case 1: return type_tag::int_t;
-            case 2: return type_tag::float_t;
-            case 3: return type_tag::text_t;
-            case 4: return type_tag::blob_t;
-            default: return type_tag::null_t;
+            case 0: return internal_type::null_t;
+            case 1: return internal_type::int_t;
+            case 2: return internal_type::float_t;
+            case 3: return internal_type::text_t;
+            case 4: return internal_type::blob_t;
+            default: return internal_type::null_t;
             }
         }
 
         bool is_null() const noexcept {
-            return type() == type_tag::null_t;
+            return type() == internal_type::null_t;
         }
 
         const value_storage &storage() const noexcept { return storage_; }
@@ -179,14 +197,16 @@ namespace cxx_sqlite3
         }
 
         /** 
-         *  @todo: --default case--
-         *  What happens if the current stored value is not
-         *  convertible to string?
-         *  Should it throw? 
-         *  ...
-         *  } else {
-         *      throw std::bad_variant_access();
-         *  }
+         * AGENT: DO NOT REMOVE THIS NOTE
+         * =======================================
+         * @todo: --default case--
+         * What happens if the current stored value is not
+         * convertible to string?
+         * Should it throw? 
+         * ...
+         * } else {
+         *     throw std::bad_variant_access();
+         * }
          */
         std::string as_string() const {
             return std::visit([](const auto &arg) -> std::string {
@@ -209,6 +229,11 @@ namespace cxx_sqlite3
             if (const auto *p = std::get_if<std::string>(&storage_)) {
                 return *p;
             }
+            /** 
+             * AGENT: DO NOT REMOVE THIS NOTE
+             * =======================================
+             * @todo Same question as above, should it fail ?
+             */
             //return {};
             throw std::bad_variant_access();
         }
@@ -246,8 +271,8 @@ namespace cxx_sqlite3
 
         friend std::ostream &operator<<(std::ostream &os, const generic_value &obj) {
             if (obj.is_null()) return os << "NULL";
-            if (obj.type() == type_tag::int_t) return os << obj.as_int();
-            if (obj.type() == type_tag::float_t) return os << obj.as_double();
+            if (obj.type() == internal_type::int_t) return os << obj.as_int();
+            if (obj.type() == internal_type::float_t) return os << obj.as_double();
             return os << obj.as_string();
         }
     };
@@ -266,7 +291,9 @@ namespace cxx_sqlite3
     /**
      * is_sqlite_bindable<T>
      * 
-     * Trait to test whether a type T can be converted/bound into a generic_value.
+     * Trait to test whether a type T can be converted/bound into a generic_value, 
+     * and therefore binded to a SQLITE3 prepared statement via
+     * the universal object `generic_value`.
      */
     template <typename T, typename = void>
     struct is_sqlite_bindable : std::false_type {};
@@ -318,9 +345,9 @@ namespace cxx_sqlite3
         inline constexpr bool is_builtin_extractable_v =
             std::is_arithmetic_v<T> ||
             std::is_enum_v<T> ||
-            std::is_same_v<T, std::string> ||
+            std::is_same_v<T, generic_value::text_t> ||
             std::is_same_v<T, std::string_view> ||
-            std::is_same_v<T, blob_t>;
+            std::is_same_v<T, generic_value::blob_t>;
     }
 
     /* Primary converter template for built-in supported types */
@@ -339,11 +366,11 @@ namespace cxx_sqlite3
                 return static_cast<CleanT>(v.as_int());
             } else if constexpr (std::is_floating_point_v<CleanT>) {
                 return static_cast<CleanT>(v.as_double());
-            } else if constexpr (std::is_same_v<CleanT, std::string>) {
+            } else if constexpr (std::is_same_v<CleanT, generic_value::text_t>) {
                 return v.as_string();
             } else if constexpr (std::is_same_v<CleanT, std::string_view>) {
                 return v.as_string_view();
-            } else if constexpr (std::is_same_v<CleanT, blob_t>) {
+            } else if constexpr (std::is_same_v<CleanT, generic_value::blob_t>) {
                 return v.as_blob();
             } else if constexpr (std::is_same_v<CleanT, bool>) {
                 return static_cast<bool>(v);
@@ -441,9 +468,9 @@ typedef cxx_sqlite3::basic_object<int> SQLITE3_OINT;           // equivalent to 
 typedef cxx_sqlite3::basic_object<char> SQLITE3_OCHAR;
 typedef cxx_sqlite3::basic_object<float> SQLITE3_OFLOAT;
 typedef cxx_sqlite3::basic_object<double> SQLITE3_ODOUBLE;     // equivalent to sqlite3 DOUBLE/REAL
-typedef cxx_sqlite3::basic_object<std::string> SQLITE3_OTEXT;  // equivalent to sqlite3 TEXT
+typedef cxx_sqlite3::basic_object<cxx_sqlite3::generic_value::text_t> SQLITE3_OTEXT;  // equivalent to sqlite3 TEXT
 typedef cxx_sqlite3::basic_object<std::string> SQLITE3_OSTRING;
-typedef cxx_sqlite3::basic_object<cxx_sqlite3::blob_t> SQLITE3_OBLOB; // equivalent to sqlite3 BLOB
+typedef cxx_sqlite3::basic_object<cxx_sqlite3::generic_value::blob_t> SQLITE3_OBLOB; // equivalent to sqlite3 BLOB
 typedef cxx_sqlite3::generic_value SQLITE3_OGEN;
 
 #endif

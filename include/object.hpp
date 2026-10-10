@@ -114,7 +114,7 @@ namespace cxx_sqlite3
         }
 
         /* Optional constructor: if empty, initializes to NULL */
-        template <typename T>
+        template <typename T, typename = std::enable_if_t<std::is_constructible_v<generic_value, const T &>>>
         generic_value(const std::optional<T> &opt) {
             if (opt.has_value()) {
                 *this = generic_value(*opt);
@@ -255,9 +255,80 @@ namespace cxx_sqlite3
     /** Backward compatibility alias */
     using generic_object = generic_value;
 
-    /* Primary converter template */
+    /* Forward declaration of value_extractor */
     template <typename T, typename Enable = void>
+    struct value_extractor;
+
+    /* =========================================================================
+     * Type Traits for SQLite Value Interoperability
+     * ========================================================================= */
+
+    /**
+     * is_sqlite_bindable<T>
+     * 
+     * Trait to test whether a type T can be converted/bound into a generic_value.
+     */
+    template <typename T, typename = void>
+    struct is_sqlite_bindable : std::false_type {};
+
+    template <typename T>
+    struct is_sqlite_bindable<T, std::void_t<
+        decltype(generic_value(std::declval<T>()))
+    >> : std::true_type {};
+
+    template <typename T>
+    inline constexpr bool is_sqlite_bindable_v = is_sqlite_bindable<T>::value;
+
+    /**
+     * is_sqlite_extractable<T>
+     * 
+     * Trait to test whether a type T can be extracted from a generic_value.
+     */
+    template <typename T, typename = void>
+    struct is_sqlite_extractable : std::false_type {};
+
+    template <typename T>
+    struct is_sqlite_extractable<T, std::void_t<
+        decltype(value_extractor<remove_cvref_t<T>>::extract(std::declval<const generic_value &>()))
+    >> : std::true_type {};
+
+    template <typename T>
+    inline constexpr bool is_sqlite_extractable_v = is_sqlite_extractable<T>::value;
+
+    /**
+     * is_sqlite_value<T>
+     * 
+     * Checks if a type T supports bidirectional binding and extraction.
+     */
+    template <typename T>
+    struct is_sqlite_value : std::integral_constant<bool,
+        is_sqlite_bindable_v<T> && is_sqlite_extractable_v<T>
+    > {};
+
+    template <typename T>
+    inline constexpr bool is_sqlite_value_v = is_sqlite_value<T>::value;
+
+    /* =========================================================================
+     * Value Extractor Implementations
+     * ========================================================================= */
+
+    /* Built-in supported types helper */
+    namespace detail {
+        template <typename T>
+        inline constexpr bool is_builtin_extractable_v =
+            std::is_arithmetic_v<T> ||
+            std::is_enum_v<T> ||
+            std::is_same_v<T, std::string> ||
+            std::is_same_v<T, std::string_view> ||
+            std::is_same_v<T, blob_t>;
+    }
+
+    /* Primary converter template for built-in supported types */
+    template <typename T, typename Enable>
     struct value_extractor {
+        static_assert(detail::is_builtin_extractable_v<remove_cvref_t<T>>,
+                      "cxx_sqlite3: Unsupported type for generic_value::as<T>()");
+
         using CleanT = remove_cvref_t<T>;
 
         static CleanT extract(const generic_value &v) {
@@ -266,8 +337,6 @@ namespace cxx_sqlite3
                 return static_cast<CleanT>(v.as<Underlying>());
             } else if constexpr (std::is_integral_v<CleanT> && !std::is_same_v<CleanT, bool>) {
                 return static_cast<CleanT>(v.as_int());
-            } else if constexpr (std::is_same_v<CleanT, bool>) {
-                return static_cast<bool>(v);
             } else if constexpr (std::is_floating_point_v<CleanT>) {
                 return static_cast<CleanT>(v.as_double());
             } else if constexpr (std::is_same_v<CleanT, std::string>) {
@@ -276,27 +345,28 @@ namespace cxx_sqlite3
                 return v.as_string_view();
             } else if constexpr (std::is_same_v<CleanT, blob_t>) {
                 return v.as_blob();
-            } else {
-                static_assert(!sizeof(CleanT), "cxx_sqlite3: Unsupported type for generic_value::as<T>()");
+            } else if constexpr (std::is_same_v<CleanT, bool>) {
+                return static_cast<bool>(v);
             }
         }
     };
 
     /* 
      * Specialization for std::optional<T> 
-     * Supports casting `generic_value` to nullable types.
-     * */
+     * Supports casting generic_value to nullable types.
+     */
     template <typename T>
     struct value_extractor<std::optional<T>> {
         static std::optional<T> extract(const generic_value &v) {
-            return !(v.is_null()) ? 
-                std::optional<T>(v.as<T>()) : std::nullopt;
+            return !v.is_null() ? std::optional<T>(v.as<T>()) : std::nullopt;
         }
     };
 
     template <typename T>
     inline T generic_value::as() const {
         using CleanT = remove_cvref_t<T>;
+        static_assert(is_sqlite_extractable_v<CleanT>,
+                      "cxx_sqlite3: Type cannot be extracted from generic_value");
         return static_cast<T>(value_extractor<CleanT>::extract(*this));
     }
 

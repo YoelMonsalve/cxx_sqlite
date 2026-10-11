@@ -75,6 +75,21 @@ namespace test_framework {
         } \
     } while (0)
 
+#define REQUIRE_THROWS_AS(expr, exc_type) \
+    do { \
+        test_framework::g_current_assertions++; \
+        bool caught = false; \
+        try { \
+            (void)(expr); \
+        } catch (const exc_type &) { \
+            caught = true; \
+        } catch (...) {} \
+        if (!caught) { \
+            std::cerr << "  FAILED REQUIRE_THROWS_AS(" #expr ", " #exc_type ") at " << __FILE__ << ":" << __LINE__ << std::endl; \
+            throw std::runtime_error("Expected exception not thrown: " #exc_type); \
+        } \
+    } while (0)
+
 #define SECTION(name) \
     test_framework::g_current_section = name;
 
@@ -401,6 +416,153 @@ TEST_CASE("Object Serialization and Strongly Typed Queries")
         REQUIRE(fetched.has_value());
         REQUIRE(fetched->label == "admin");
         REQUIRE(fetched->level == 5);
+    }
+}
+
+/* ========================================================================= */
+/* Test Case 7: Stream Operators << and >> (Insertion and Extraction)        */
+/* ========================================================================= */
+TEST_CASE("Stream Operators << and >> (Insertion and Extraction)")
+{
+    database db(":memory:");
+    db.exec("CREATE TABLE staff (id INTEGER PRIMARY KEY, name TEXT, salary REAL, email TEXT);");
+
+    SECTION("Statement stream insertion with values and cxx_sqlite3::exec")
+    {
+        statement stmt = db.prepare_statement("INSERT INTO staff VALUES (?, ?, ?, ?);");
+        stmt << 10 << "Charlie" << 4500.0 << std::string("charlie@test.com") << cxx_sqlite3::exec;
+        stmt << 20 << "Diana" << 5200.0 << std::nullopt << cxx_sqlite3::exec;
+
+        auto c = db.query_one<test_models::Employee>("SELECT * FROM staff WHERE id = 10;");
+        REQUIRE(c.has_value());
+        REQUIRE(c->name == "Charlie");
+        REQUIRE(c->salary == 4500.0);
+        REQUIRE(c->email.has_value());
+        REQUIRE(*c->email == "charlie@test.com");
+
+        auto d = db.query_one<test_models::Employee>("SELECT * FROM staff WHERE id = 20;");
+        REQUIRE(d.has_value());
+        REQUIRE(d->name == "Diana");
+        REQUIRE(!d->email.has_value());
+    }
+
+    SECTION("Statement stream insertion with cxx_sqlite3::eol alias")
+    {
+        statement stmt = db.prepare_statement("INSERT INTO staff VALUES (?, ?, ?, ?);");
+        stmt << 30 << "Edward" << 7100.0 << std::string("edward@test.com") << cxx_sqlite3::eol;
+
+        auto e = db.query_one<test_models::Employee>("SELECT * FROM staff WHERE id = 30;");
+        REQUIRE(e.has_value());
+        REQUIRE(e->name == "Edward");
+        REQUIRE(e->salary == 7100.0);
+    }
+
+    SECTION("Database stream insertion: db << sql << params << exec / eol")
+    {
+        db << "INSERT INTO staff VALUES (?, ?, ?, ?);" << 40 << "Fiona" << 8300.0 << std::nullopt << cxx_sqlite3::exec;
+        db << "INSERT INTO staff VALUES (?, ?, ?, ?);" << 50 << "George" << 9100.0 << std::string("george@test.com") << cxx_sqlite3::eol;
+
+        auto f = db.query_one<test_models::Employee>("SELECT * FROM staff WHERE id = 40;");
+        REQUIRE(f.has_value());
+        REQUIRE(f->name == "Fiona");
+        REQUIRE(f->salary == 8300.0);
+
+        auto g = db.query_one<test_models::Employee>("SELECT * FROM staff WHERE id = 50;");
+        REQUIRE(g.has_value());
+        REQUIRE(g->name == "George");
+        REQUIRE(g->salary == 9100.0);
+    }
+
+    SECTION("Database stream insertion with mapped struct")
+    {
+        test_models::Employee hank{60, "Hank", 6400.0, std::nullopt};
+        db << "INSERT INTO staff (id, name, salary, email) VALUES (:id, :name, :salary, :email);" << hank << cxx_sqlite3::exec;
+
+        auto h = db.query_one<test_models::Employee>("SELECT * FROM staff WHERE id = 60;");
+        REQUIRE(h.has_value());
+        REQUIRE(h->name == "Hank");
+        REQUIRE(h->salary == 6400.0);
+    }
+
+    SECTION("Sequential column extraction: row >> col1 >> col2 >> ...")
+    {
+        row r = db.query("SELECT id, name, salary FROM staff WHERE id = 10;").fetch_row();
+        int id = 0;
+        std::string name;
+        double salary = 0.0;
+
+        r >> id >> name >> salary;
+        REQUIRE(id == 10);
+        REQUIRE(name == "Charlie");
+        REQUIRE(salary == 4500.0);
+
+        // Exhausted columns throw exception_column
+        int extra = 0;
+        REQUIRE_THROWS_AS(r >> extra, cxx_sqlite3::exception_column);
+
+        // Reset cursor allows re-reading
+        r.reset_column_cursor();
+        int id2 = 0;
+        r >> id2;
+        REQUIRE(id2 == 10);
+    }
+
+    SECTION("While loop stream extraction: while (query >> emp)")
+    {
+        statement query = db.query("SELECT * FROM staff WHERE salary >= ? ORDER BY id ASC;", 5000.0);
+        test_models::Employee emp;
+        std::vector<test_models::Employee> list;
+
+        while (query >> emp) {
+            list.push_back(emp);
+        }
+
+        REQUIRE(list.size() == 5); // Diana (20), Edward (30), Fiona (40), George (50), Hank (60)
+        REQUIRE(list[0].name == "Diana");
+        REQUIRE(list[1].name == "Edward");
+        REQUIRE(list[2].name == "Fiona");
+        REQUIRE(list[3].name == "George");
+        REQUIRE(list[4].name == "Hank");
+
+        // Statement evaluates to false when exhausted
+        REQUIRE(!query);
+    }
+
+    SECTION("While loop tuple stream extraction: while (query >> tuple)")
+    {
+        statement query = db.query("SELECT id, name, salary FROM staff ORDER BY id ASC;");
+        std::tuple<int, std::string, double> item;
+        int count = 0;
+
+        while (query >> item) {
+            count++;
+            auto [t_id, t_name, t_sal] = item;
+            if (count == 1) {
+                REQUIRE(t_id == 10);
+                REQUIRE(t_name == "Charlie");
+                REQUIRE(t_sal == 4500.0);
+            }
+        }
+
+        REQUIRE(count == 6); // All 6 staff members
+        REQUIRE(!query);
+    }
+
+    SECTION("Direct database_stream extraction: while (stream >> emp)")
+    {
+        auto stream = db << "SELECT * FROM staff WHERE id <= ? ORDER BY id ASC;" << 30;
+        test_models::Employee e;
+        std::vector<test_models::Employee> stream_emps;
+
+        while (stream >> e) {
+            stream_emps.push_back(e);
+        }
+
+        REQUIRE(stream_emps.size() == 3); // Charlie (10), Diana (20), Edward (30)
+        REQUIRE(stream_emps[0].name == "Charlie");
+        REQUIRE(stream_emps[1].name == "Diana");
+        REQUIRE(stream_emps[2].name == "Edward");
+        REQUIRE(!stream);
     }
 }
 

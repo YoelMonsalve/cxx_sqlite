@@ -160,6 +160,43 @@ if (emp) {
 }
 ```
 
+### 7. Stream Operators `<<` & `>>` (Pipelining, `exec`, and `eol`)
+
+```cpp
+// 1. Immediate database pipelining with sequential parameters
+db << "INSERT INTO employees VALUES (?, ?, ?, ?);"
+   << 102 << "Bob" << 7500.0 << std::nullopt
+   << cxx_sqlite3::exec; // or cxx_sqlite3::eol
+
+// 2. Direct database pipelining with an ADL-mapped struct
+Employee carl{103, "Carl", 8100.0, "carl@company.com"};
+db << "INSERT INTO employees VALUES (:id, :name, :salary, :email);"
+   << carl
+   << cxx_sqlite3::eol; // eol is an alias for exec (End-Of-Line / End-Of-Query)
+
+// 3. Sequential column extraction from a row
+row r = db.query("SELECT id, name, salary FROM employees WHERE id = 102;").fetch_row();
+int id;
+std::string name;
+double salary;
+r >> id >> name >> salary;
+
+// 4. Stream extraction loop over a query (while query has rows)
+statement query = db.query("SELECT * FROM employees WHERE salary >= ? ORDER BY id ASC;", 7000.0);
+Employee e;
+while (query >> e) {
+    std::cout << "Employee: " << e.name << " ($" << e.salary << ")\n";
+}
+
+// 5. Tuple stream extraction loop
+statement q = db.query("SELECT id, name, salary FROM employees ORDER BY id ASC;");
+std::tuple<int, std::string, double> record;
+while (q >> record) {
+    auto [emp_id, emp_name, emp_salary] = record;
+    std::cout << "#" << emp_id << " " << emp_name << " (" << emp_salary << ")\n";
+}
+```
+
 ---
 
 ## Building and Testing

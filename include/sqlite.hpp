@@ -56,6 +56,11 @@ using std::vector;
 
 namespace cxx_sqlite3
 {
+    /** Stream execution manipulator tag (mirrors std::endl) */
+    struct exec_t {};
+    inline constexpr exec_t exec{};
+    inline constexpr exec_t eol{}; // Alias for exec (End-Of-Line / End-Of-Query)
+
     /** 
      * open modes 
      * https://www.sqlite.org/c3ref/open.html
@@ -117,6 +122,12 @@ namespace cxx_sqlite3
     class row;
 
     namespace detail {
+        template <typename T>
+        struct is_tuple : std::false_type {};
+
+        template <typename... Ts>
+        struct is_tuple<std::tuple<Ts...>> : std::true_type {};
+
         template <typename Tuple, std::size_t... Is>
         Tuple tuple_from_row_impl(const row &r, std::index_sequence<Is...>);
     }
@@ -205,7 +216,13 @@ namespace cxx_sqlite3
         template <typename T>
         T as() const
         {
-            if constexpr (detail::has_from_sqlite<T>::value) {
+            if constexpr (detail::is_tuple<T>::value) {
+                constexpr std::size_t N = std::tuple_size_v<T>;
+                if (this->size() < N) {
+                    throw exception_column("row has fewer columns than requested tuple size");
+                }
+                return detail::tuple_from_row_impl<T>(*this, std::make_index_sequence<N>{});
+            } else if constexpr (detail::has_from_sqlite<T>::value) {
                 T obj{};
                 adl_serializer<T>::from_sqlite(*this, obj);
                 return obj;
@@ -248,6 +265,26 @@ namespace cxx_sqlite3
         {
             add(p.first ? p.first : "", p.second);
         }
+
+        /** Reset sequential column extraction cursor */
+        void reset_column_cursor() const noexcept
+        {
+            next_col_index_ = 0;
+        }
+
+        /** Sequential column extraction: row >> var1 >> var2 >> ... */
+        template <typename T>
+        const row &operator>>(T &target) const
+        {
+            if (next_col_index_ >= values_.size()) {
+                throw exception_column("no more columns available for extraction");
+            }
+            target = values_[next_col_index_++].template as<T>();
+            return *this;
+        }
+
+    private:
+        mutable size_t next_col_index_ = 0;
     };
 
     namespace detail {
@@ -264,6 +301,8 @@ namespace cxx_sqlite3
         const char   *pzTail = nullptr;      /* pointer to unused portion */
         sqlite3_stmt *pStmt  = nullptr;      /* underlying sqlite3 primitive statement */
         return_code_t rc_    = int(error::ok);  /* return code of the last operation performed */
+        int next_bind_col_   = 1;               /* sequential stream insertion parameter index (1-based) */
+        mutable int last_fetch_state_ = int(error::ok); /* outcome of latest operator>> row step */
 
     public:
         /** constructors */
@@ -284,12 +323,15 @@ namespace cxx_sqlite3
 
         // Movable (transfers ownership of statement resources)
         statement(statement &&other) noexcept
-            : conn_(other.conn_), pzTail(other.pzTail), pStmt(other.pStmt), rc_(other.rc_)
+            : conn_(other.conn_), pzTail(other.pzTail), pStmt(other.pStmt), rc_(other.rc_),
+              next_bind_col_(other.next_bind_col_), last_fetch_state_(other.last_fetch_state_)
         {
             other.conn_ = nullptr;
             other.pzTail = nullptr;
             other.pStmt = nullptr;
             other.rc_ = int(error::ok);
+            other.next_bind_col_ = 1;
+            other.last_fetch_state_ = int(error::ok);
         }
 
         statement &operator=(statement &&other) noexcept
@@ -301,10 +343,14 @@ namespace cxx_sqlite3
                 pzTail = other.pzTail;
                 pStmt = other.pStmt;
                 rc_ = other.rc_;
+                next_bind_col_ = other.next_bind_col_;
+                last_fetch_state_ = other.last_fetch_state_;
                 other.conn_ = nullptr;
                 other.pzTail = nullptr;
                 other.pStmt = nullptr;
                 other.rc_ = int(error::ok);
+                other.next_bind_col_ = 1;
+                other.last_fetch_state_ = int(error::ok);
             }
             return *this;
         }
@@ -505,6 +551,7 @@ namespace cxx_sqlite3
             return bind_blob(iCol, val.data(), val.size(), hdl);
         }
         ErrorCode bind_one(col_index_t iCol, std::nullptr_t) { return bind_null(iCol); }
+        ErrorCode bind_one(col_index_t iCol, std::nullopt_t) { return bind_null(iCol); }
         ErrorCode bind_one(col_index_t iCol, const SQLITE3_ONULL &) { return bind_null(iCol); }
         ErrorCode bind_one(col_index_t iCol, const generic_value &val) {
             return std::visit([this, iCol](const auto &arg) -> ErrorCode {
@@ -683,6 +730,8 @@ namespace cxx_sqlite3
         {
             /* method is expected to only return SQLITE_OK on success.
              * Otherwise, throw exception */
+            next_bind_col_ = 1;
+            last_fetch_state_ = int(error::ok);
             rc_ = sqlite3_reset(pStmt);
             if (rc_ != int(error::ok)) {
                 throw exception_reset(errmsg());
@@ -692,12 +741,16 @@ namespace cxx_sqlite3
         /* noexcept version, error_code based */
         statement & reset(ErrorCode ec) noexcept 
         {
+            next_bind_col_ = 1;
+            last_fetch_state_ = int(error::ok);
             ec = sqlite3_reset(pStmt);
             return *this;
         }
         /* noexcept const version, error_code based */
         const statement & reset(ErrorCode ec) const noexcept 
         {
+            const_cast<statement*>(this)->next_bind_col_ = 1;
+            last_fetch_state_ = int(error::ok);
             ec = sqlite3_reset(pStmt);
             return *this;
         }
@@ -714,6 +767,8 @@ namespace cxx_sqlite3
              * If the most recent evaluation of statement `S` failed, 
              * then sqlite3_finalize(S) returns the appropriate error code 
              * or extended error code. */
+            next_bind_col_ = 1;
+            last_fetch_state_ = int(error::ok);
             if (pStmt != nullptr)
             {
                 rc_ = sqlite3_finalize(pStmt);
@@ -725,6 +780,7 @@ namespace cxx_sqlite3
         /** clear all bound parameters */
         ErrorCode clear_bindings() noexcept
         {
+            next_bind_col_ = 1;
             if (pStmt != nullptr)
             {
                 rc_ = sqlite3_clear_bindings(pStmt);
@@ -732,9 +788,102 @@ namespace cxx_sqlite3
             return rc_;
         }
 
-        /** check if statement is prepared / valid */
+        /** check if statement is prepared / valid and not at error or end of fetch stream */
         bool is_valid() const noexcept { return pStmt != nullptr; }
-        explicit operator bool() const noexcept { return is_valid(); }
+        explicit operator bool() const noexcept {
+            if (!is_valid()) return false;
+            if (last_fetch_state_ == int(error::done)) return false;
+            if (last_fetch_state_ != int(error::ok) && last_fetch_state_ != int(error::row)) return false;
+            return true;
+        }
+
+        /** Reset sequential parameter stream binding index */
+        void reset_bind_cursor() noexcept { next_bind_col_ = 1; }
+
+        /** Stream insertion: execute immediately on cxx_sqlite3::exec / cxx_sqlite3::eol */
+        statement &operator<<(exec_t)
+        {
+            step();
+            reset();
+            clear_bindings();
+            return *this;
+        }
+
+        /** Stream insertion: struct / object mapping via ADL to_sqlite */
+        template <typename T, typename std::enable_if_t<detail::has_to_sqlite<T>::value &&
+                                                        !std::is_same_v<std::decay_t<T>, exec_t>, int> = 0>
+        statement &operator<<(const T &val)
+        {
+            to_sqlite(*this, val);
+            return *this;
+        }
+
+        /** Stream insertion: sequential positional value binding */
+        template <typename T, typename std::enable_if_t<!detail::has_to_sqlite<T>::value &&
+                                                        !std::is_same_v<std::decay_t<T>, exec_t>, int> = 0>
+        statement &operator<<(const T &val)
+        {
+            rc_ = bind_one(next_bind_col_++, val);
+            if (rc_ != int(error::ok)) {
+                throw exception_bind(errmsg());
+            }
+            return *this;
+        }
+
+        /** Stream extraction: whole-row extraction into struct/object via from_sqlite */
+        template <typename T, typename std::enable_if_t<detail::has_from_sqlite<T>::value, int> = 0>
+        statement &operator>>(T &val)
+        {
+            ErrorCode ec;
+            step(ec);
+            last_fetch_state_ = ec;
+            if (ec == error::row) {
+                row r = read_current_row();
+                from_sqlite(r, val);
+            } else if (ec == error::done) {
+                // End of rows reached; last_fetch_state_ remains error::done so operator bool() returns false
+            } else {
+                throw exception_step(errmsg());
+            }
+            return *this;
+        }
+
+        /** Stream extraction: whole-row extraction into cxx_sqlite3::row */
+        statement &operator>>(row &r)
+        {
+            ErrorCode ec;
+            step(ec);
+            last_fetch_state_ = ec;
+            if (ec == error::row) {
+                r = read_current_row();
+            } else if (ec == error::done) {
+                r = row{};
+            } else {
+                throw exception_step(errmsg());
+            }
+            return *this;
+        }
+
+        /** Stream extraction: tuple deconstruction */
+        template <typename... Ts>
+        statement &operator>>(std::tuple<Ts...> &val)
+        {
+            ErrorCode ec;
+            step(ec);
+            last_fetch_state_ = ec;
+            if (ec == error::row) {
+                row r = read_current_row();
+                if (r.size() < sizeof...(Ts)) {
+                    throw exception_column("row has fewer columns than requested tuple size");
+                }
+                val = detail::tuple_from_row_impl<std::tuple<Ts...>>(r, std::index_sequence_for<Ts...>{});
+            } else if (ec == error::done) {
+                // End of rows reached
+            } else {
+                throw exception_step(errmsg());
+            }
+            return *this;
+        }
 
         /**
          * Submit a query for execution. This is similar to the `mysqli::query()` method
@@ -933,6 +1082,7 @@ namespace cxx_sqlite3
     using result = statement::result;
 
     class database;
+    class database_stream;
 
     /**
      * RAII Transaction Guard
@@ -1285,6 +1435,10 @@ namespace cxx_sqlite3
             return query_one<T>(sql.c_str(), std::forward<Args>(args)...);
         }
 
+        /** Stream-based execution / query builder: db << sql */
+        database_stream operator<<(const char *sql);
+        database_stream operator<<(const std::string &sql);
+
         /**
          * Prints out the result of the query, in vertical format.
          */
@@ -1454,6 +1608,97 @@ namespace cxx_sqlite3
             printTableSep(colWidth);
         }
     };
+
+    /**
+     * database_stream
+     * Fluent query / statement stream proxy for database operator<<
+     * Enables: db << "INSERT INTO ..." << 1 << "Alice" << exec;
+     * and:     auto stream = db << "SELECT * FROM ..."; while (stream >> u) { ... }
+     */
+    class database_stream
+    {
+    private:
+        statement stmt_;
+
+    public:
+        database_stream(sqlite3 *conn, const char *sql)
+            : stmt_(conn, sql)
+        {
+        }
+
+        database_stream(database_stream &&) noexcept = default;
+        database_stream &operator=(database_stream &&) noexcept = default;
+        database_stream(const database_stream &) = delete;
+        database_stream &operator=(const database_stream &) = delete;
+
+        /** Stream insertion: parameter binding or ADL struct mapping */
+        template <typename T, typename std::enable_if_t<!std::is_same_v<std::decay_t<T>, exec_t>, int> = 0>
+        database_stream &operator<<(const T &val) &
+        {
+            stmt_ << val;
+            return *this;
+        }
+
+        template <typename T, typename std::enable_if_t<!std::is_same_v<std::decay_t<T>, exec_t>, int> = 0>
+        database_stream &&operator<<(const T &val) &&
+        {
+            stmt_ << val;
+            return std::move(*this);
+        }
+
+        /** Stream insertion: execute immediately */
+        statement &operator<<(exec_t) &
+        {
+            stmt_ << exec;
+            return stmt_;
+        }
+
+        statement operator<<(exec_t) &&
+        {
+            stmt_ << exec;
+            return std::move(stmt_);
+        }
+
+        /** Stream extraction: row, tuple, or struct extraction */
+        template <typename T>
+        database_stream &operator>>(T &val) &
+        {
+            stmt_ >> val;
+            return *this;
+        }
+
+        template <typename T>
+        database_stream &&operator>>(T &val) &&
+        {
+            stmt_ >> val;
+            return std::move(*this);
+        }
+
+        /** Check if stream is active / valid for extraction */
+        explicit operator bool() const noexcept
+        {
+            return static_cast<bool>(stmt_);
+        }
+
+        /** Allow converting / moving to statement */
+        operator statement() && {
+            return std::move(stmt_);
+        }
+
+        statement &get_statement() noexcept { return stmt_; }
+        const statement &get_statement() const noexcept { return stmt_; }
+    };
+
+    inline database_stream database::operator<<(const char *sql)
+    {
+        if (conn == nullptr) throw exception("database connection is closed");
+        return database_stream(conn, sql);
+    }
+
+    inline database_stream database::operator<<(const std::string &sql)
+    {
+        return operator<<(sql.c_str());
+    }
 
     /** transaction implementation */
     inline transaction::transaction(database &db) : db_(db), committed_(false) {

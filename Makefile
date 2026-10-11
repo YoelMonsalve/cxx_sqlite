@@ -130,6 +130,10 @@ test_catch2: $(CTEST_BINS)
 		$$bin || exit 1; \
 	done
 
+test_object: $(BUILD_DIR)/test_object$(BIN_EXT)
+	@echo "Executing $(BUILD_DIR)/test_object$(BIN_EXT):"
+	@$(BUILD_DIR)/test_object$(BIN_EXT)
+
 # Dedicated target to run bare RAII test specifically
 test_raii: $(BUILD_DIR)/test_raii$(BIN_EXT)
 	@echo "Executing $(BUILD_DIR)/test_raii$(BIN_EXT):"

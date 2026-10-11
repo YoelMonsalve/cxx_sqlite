@@ -36,6 +36,13 @@ namespace cxx_sqlite3
     {
         noexception() : exception("no exception") {}
     };
+
+    /** exception thrown on prepare_statement_v2() */
+    struct generic_exception: public exception
+    {
+        generic_exception(const char *msg) 
+            : exception((std::string{"cxx_sqlite3 error: "} + msg).c_str()) {}
+    };
     
     /** exception thrown on prepare_statement_v2() */
     struct exception_prepare: public exception
@@ -93,7 +100,19 @@ namespace cxx_sqlite3
         static const exception ex1;
         static const exception no_exception;
     };    
-    // TODO: more specializations ...
+    
+
+    /** Object exception */
+    struct exception_object: public exception
+    {
+        exception_object(const char *msg) 
+            : exception((std::string{"cxx_sqlite3 error: object: "} + msg).c_str()) {}
+    };
+    struct exception_object_bad_cast: public exception_object
+    {
+        exception_object_bad_cast() 
+            : exception_object("cannot cast value") {}
+    };
 }
 
 typedef cxx_sqlite3::exception sqlite3_exception;

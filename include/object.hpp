@@ -30,6 +30,15 @@
 #include <stdexcept>
 
 #include "cpp_version.hpp"
+#include "exception.hpp"
+
+/**
+ * @todo: Consider adding support for exceptions.
+ * 
+ * Example: user invokes `as_int()` but the value either is not
+ * properly an int, neither a value convertible to int (e.g., 
+ * 1, "1", true, 1.0, etc.).
+ */
 
 namespace cxx_sqlite3
 {
@@ -55,7 +64,7 @@ namespace cxx_sqlite3
          * Equivalence between human-comprehensible types, and internal
          * representation used by SQLITE */
         using int_t    = int64_t;
-        using bool_t   = int_t;     /* is this assuption correct ? */
+        using bool_t   = int_t;     /* is this assumption correct ? */
         using double_t = double;
         using blob_t   = std::vector<uint8_t>;
         using text_t   = std::string;
@@ -71,11 +80,11 @@ namespace cxx_sqlite3
         using null_type   = null_t;
         
         enum class internal_type {
-            null_t,
-            int_t,
-            float_t,
-            text_t,
-            blob_t
+            null = 0,
+            integer,
+            floating,
+            text,
+            blob
         };
         
         /**
@@ -143,26 +152,28 @@ namespace cxx_sqlite3
 
         /* State and type inspection */
         internal_type type() const noexcept {
+            return (internal_type)storage_.index();
+            /* the above, is equivalent to */
             switch (storage_.index()) {
-            case 0: return internal_type::null_t;
-            case 1: return internal_type::int_t;
-            case 2: return internal_type::float_t;
-            case 3: return internal_type::text_t;
-            case 4: return internal_type::blob_t;
-            default: return internal_type::null_t;
+            case 0: return internal_type::null;
+            case 1: return internal_type::integer;
+            case 2: return internal_type::floating;
+            case 3: return internal_type::text;
+            case 4: return internal_type::blob;
+            default: return internal_type::null;
             }
         }
 
+        /* Getter methods for underlying container */
         int index() const noexcept { return storage_.index(); }
-        
-        const value_storage &storage() const noexcept { return storage_; }
+        value_storage storage() const noexcept { return storage_; }
 
         /** Internal data type getters */
-        bool is_null() const noexcept { return type() == internal_type::null_t; }
-        bool is_int() const noexcept { return type() == internal_type::int_t; }
-        bool is_float() const noexcept { return type() == internal_type::float_t; }
-        bool is_text() const noexcept { return type() == internal_type::text_t; }
-        bool is_blob() const noexcept { return type() == internal_type::blob_t; }
+        bool is_null() const noexcept { return type() == internal_type::null; }
+        bool is_int() const noexcept { return type() == internal_type::integer; }
+        bool is_float() const noexcept { return type() == internal_type::floating; }
+        bool is_text() const noexcept { return type() == internal_type::text; }
+        bool is_blob() const noexcept { return type() == internal_type::blob; }
         bool is_numeric() const noexcept { return is_int() || is_float(); }
 
         /* Coercion and conversion methods */
@@ -172,11 +183,11 @@ namespace cxx_sqlite3
                 using T = remove_cvref_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, null_t>) {
                     return 0;
-                } else if constexpr (std::is_same_v<T, int64_t>) {
+                } else if constexpr (std::is_same_v<T, int_t>) {
                     return arg;
-                } else if constexpr (std::is_same_v<T, double>) {
+                } else if constexpr (std::is_same_v<T, double_t>) {
                     return static_cast<int64_t>(arg);
-                } else if constexpr (std::is_same_v<T, std::string>) {
+                } else if constexpr (std::is_same_v<T, text_t>) {
                     try { return std::stoll(arg); } catch (...) { return 0; }
                 } else {
                     return 0;
@@ -190,11 +201,11 @@ namespace cxx_sqlite3
                 using T = remove_cvref_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, null_t>) {
                     return 0.0;
-                } else if constexpr (std::is_same_v<T, int64_t>) {
+                } else if constexpr (std::is_same_v<T, int_t>) {
                     return static_cast<double>(arg);
-                } else if constexpr (std::is_same_v<T, double>) {
+                } else if constexpr (std::is_same_v<T, double_t>) {
                     return arg;
-                } else if constexpr (std::is_same_v<T, std::string>) {
+                } else if constexpr (std::is_same_v<T, text_t>) {
                     try { return std::stod(arg); } catch (...) { return 0.0; }
                 } else {
                     return 0.0;
@@ -220,11 +231,11 @@ namespace cxx_sqlite3
                 using T = remove_cvref_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, null_t>) {
                     return "";
-                } else if constexpr (std::is_same_v<T, int64_t>) {
+                } else if constexpr (std::is_same_v<T, int_t>) {
                     return std::to_string(arg);
-                } else if constexpr (std::is_same_v<T, double>) {
+                } else if constexpr (std::is_same_v<T, double_t>) {
                     return std::to_string(arg);
-                } else if constexpr (std::is_same_v<T, std::string>) {
+                } else if constexpr (std::is_same_v<T, text_t>) {
                     return arg;
                 } else if constexpr (std::is_same_v<T, blob_t>) {
                     return std::string(arg.begin(), arg.end());
@@ -242,7 +253,7 @@ namespace cxx_sqlite3
              * @todo Same question as above, should it fail ?
              */
             //return {};
-            throw std::bad_variant_access();
+            throw exception_object("Cannot cast value to string_view");
         }
 
         const blob_t &as_blob() const {
@@ -272,14 +283,15 @@ namespace cxx_sqlite3
         bool operator!() const { return !static_cast<bool>(*this); }
 
         bool operator==(const generic_value &other) const {
-            return storage_ == other.storage_;
+            return storage_ == other.storage_ 
+                && storage_.index() == storage_.index();
         }
         bool operator!=(const generic_value &other) const { return !(*this == other); }
 
         friend std::ostream &operator<<(std::ostream &os, const generic_value &obj) {
             if (obj.is_null()) return os << "NULL";
-            if (obj.type() == internal_type::int_t) return os << obj.as_int();
-            if (obj.type() == internal_type::float_t) return os << obj.as_double();
+            if (obj.type() == internal_type::integer) return os << obj.as_int();
+            if (obj.type() == internal_type::floating) return os << obj.as_double();
             return os << obj.as_string();
         }
     };

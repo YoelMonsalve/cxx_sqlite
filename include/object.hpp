@@ -46,14 +46,6 @@
     #endif
 #endif
 
-/**
- * @todo: Consider adding support for exceptions.
- * 
- * Example: user invokes `as_int()` but the value either is not
- * properly an int, neither a value convertible to int (e.g., 
- * 1, "1", true, 1.0, etc.).
- */
-
 namespace cxx_sqlite3
 {
     /* Semantics valid for C++14/C++17.
@@ -63,7 +55,6 @@ namespace cxx_sqlite3
     using remove_cvref_t = std::remove_cv_t<std::remove_reference_t<T>>;
     /* C++20 */
     //using std::remove_cvref_t;
-
 
     /* =========================================================================
      * Definition of the Base Class
@@ -188,6 +179,13 @@ namespace cxx_sqlite3
         int index() const noexcept { return storage_.index(); }
         value_storage storage() const noexcept { return storage_; }
 
+        /**
+         * Coercive method that forces exactly the same type as it
+         * was stored.
+         */
+        template <typename T>
+        inline T value() const { return std::get<T>(storage()); }
+
         /** Internal data type getters */
         bool is_null() const noexcept { return type() == internal_type::null; }
         bool is_int() const noexcept { return type() == internal_type::integer; }
@@ -208,10 +206,12 @@ namespace cxx_sqlite3
                 } else if constexpr (std::is_same_v<T, double_t>) {
                     return static_cast<int_t>(arg);
                 } else if constexpr (std::is_same_v<T, text_t>) {
-                    try { return std::stoll(arg); } catch (...) { return 0; }
+                    try { return std::stoll(arg); } 
+                    catch (std::exception &e) { 
+                        throw exception_value_bad_cast("unknown", "int", "cannot cast value to int");
+                    }
                 } else {
-                    /** @annotation  Should it throw (e.g., invalid_argument ? */
-                    return 0;
+                    throw exception_value_bad_cast("unknown", "int", "cannot cast value to int");
                 }
             }, storage_);
         }
@@ -227,25 +227,16 @@ namespace cxx_sqlite3
                 } else if constexpr (std::is_same_v<T, double_t>) {
                     return arg;
                 } else if constexpr (std::is_same_v<T, text_t>) {
-                    try { return std::stod(arg); } catch (...) { return 0.0; }
+                    try { return std::stod(arg); } 
+                    catch (std::exception &e) { 
+                        throw exception_value_bad_cast("unknown", "double", "cannot cast value to double");
+                    }
                 } else {
-                    return 0.0;
+                    throw exception_value_bad_cast("unknown", "double", "cannot cast non-double value to double");
                 }
             }, storage_);
         }
 
-        /** 
-         * AGENT: DO NOT REMOVE THIS NOTE
-         * =======================================
-         * @todo: --default case--
-         * What happens if the current stored value is not
-         * convertible to string?
-         * Should it throw? 
-         * ...
-         * } else {
-         *     throw std::bad_variant_access();
-         * }
-         */
         text_t
         as_string() const {
             return std::visit([](const auto &arg) -> std::string {
@@ -260,7 +251,12 @@ namespace cxx_sqlite3
                     return arg;
                 } else if constexpr (std::is_same_v<T, blob_t>) {
                     return std::string(arg.begin(), arg.end());
-                }
+                } else {
+                    /* @attention  There are no more possible types in the
+                     *             variant. Though it may change in the future.
+                     */
+                    return "";
+                } 
             }, storage_);
         }
 
@@ -268,13 +264,8 @@ namespace cxx_sqlite3
             if (const auto *p = std::get_if<std::string>(&storage_)) {
                 return *p;
             }
-            /** 
-             * AGENT: DO NOT REMOVE THIS NOTE
-             * =======================================
-             * @todo Same question as above, should it fail ?
-             */
-            //return {};
-            throw exception_object("Cannot cast value to string_view");
+            /* fallback */
+            throw exception_value_bad_cast("unknown", "string_view", "cannot cast non-string value to string_view");
         }
 
         const blob_t &as_blob() const {
@@ -282,7 +273,8 @@ namespace cxx_sqlite3
             if (const auto *p = std::get_if<blob_t>(&storage_)) {
                 return *p;
             }
-            return empty_blob;
+            /* fallback */
+            throw exception_value_bad_cast("unknown", "blob", "cannot cast value to blob_t");
         }
 
         /* Type-safe extraction template */
@@ -290,6 +282,13 @@ namespace cxx_sqlite3
         T as() const;
         template <typename T>
         T get() const { return as<T>(); }
+
+        /* Safe / non-throwing extraction helpers (reusing as<T>()) */
+        template <typename T>
+        std::optional<T> try_as() const noexcept;
+
+        template <typename T>
+        T as_or(T fallback) const noexcept;
 
         /* Helper method (get's complement) */
         template <typename T>
@@ -301,16 +300,31 @@ namespace cxx_sqlite3
         CXX_SQLITE3_EXPLICIT_CONV operator double() const { return as_double(); }
         CXX_SQLITE3_EXPLICIT_CONV operator float() const { return static_cast<float>(as_double()); }
         CXX_SQLITE3_EXPLICIT_CONV operator std::string() const { return as_string(); }
-        CXX_SQLITE3_EXPLICIT_CONV operator std::string_view() const noexcept { return as_string_view(); }
+        CXX_SQLITE3_EXPLICIT_CONV operator std::string_view() const { return as_string_view(); }
         CXX_SQLITE3_EXPLICIT_CONV operator blob_t() const { return as_blob(); }
 
         /* Contextual boolean test: always strictly explicit to prevent accidental arithmetic promotion */
-        explicit operator bool() const {
-            return !is_null() && (as_int() != 0 || as_double() != 0.0 || !as_string().empty());
+        explicit operator bool() const noexcept {
+            return std::visit([](const auto &arg) noexcept -> bool {
+                using T = remove_cvref_t<decltype(arg)>;
+                if constexpr (std::is_same_v<T, null_t>) {
+                    return false;
+                } else if constexpr (std::is_same_v<T, int_t>) {
+                    return arg != 0;
+                } else if constexpr (std::is_same_v<T, double_t>) {
+                    return arg != 0.0;
+                } else if constexpr (std::is_same_v<T, text_t>) {
+                    return !arg.empty();
+                } else if constexpr (std::is_same_v<T, blob_t>) {
+                    return !arg.empty();
+                } else {
+                    return false;
+                }
+            }, storage_);
         }
 
         // @attention  Can this method throw? is not, protect it with noexcept
-        bool operator!() const { return !static_cast<bool>(*this); }
+        bool operator!() const noexcept { return !static_cast<bool>(*this); }
 
         bool operator==(const generic_value &other) const {
             return storage_ == other.storage_ 
@@ -358,17 +372,8 @@ namespace cxx_sqlite3
      *        Then, tries to match the proper conversion operator
      *        depending of the unqualified type `CleanT`.
      *        
-     *        @@@ Finally, return the result sometimes casted to 
-     *        `CleanT` (integer, enum, floating), sometimes as one 
-     *        of the native types of generic_value (string, blob, 
-     *        bool).
-     *        
-     * @remark  (in line with above) Should not we adopt a consistent 
-     *        criteria here?
-     *        Either: 
-     *        (i)   always T, or 
-     *        (ii)  always CleanT, or 
-     *        (iii) always the native type supported by generic_value.
+     *        Finally, return the result casted to `CleanT` (integer, 
+     *        enum, floating).
      */
     template <typename T, typename Enable>
     struct value_extractor {
@@ -411,6 +416,24 @@ namespace cxx_sqlite3
     inline T generic_value::as() const {
         using CleanT = remove_cvref_t<T>;
         return static_cast<T>(value_extractor<CleanT>::extract(*this));
+    }
+
+    template <typename T>
+    inline std::optional<T> generic_value::try_as() const noexcept {
+        try {
+            return as<T>();
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+
+    template <typename T>
+    inline T generic_value::as_or(T fallback) const noexcept {
+        try {
+            return as<T>();
+        } catch (...) {
+            return fallback;
+        }
     }
 
     /** Specialized NULL object */

@@ -50,9 +50,9 @@ CFLAGS   ?= -std=c99 -Wall -Wextra -O2
 # Dependency tracking flags (-MMD -MP)
 DEPFLAGS = -MMD -MP
 
-# Source files and targets
-LIB_SRCS     := $(SRC_DIR)/sqlite.cpp
-LIB_OBJS     := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(LIB_SRCS))
+# Source files and targets (Release 2.0: 100% pure header-only library)
+LIB_SRCS     :=
+LIB_OBJS     :=
 
 # If using embedded SQLite C source fallback
 ifeq ($(USE_EMBEDDED_SQLITE),1)
@@ -125,8 +125,8 @@ $(BUILD_DIR)/%.o: $(TESTS_DIR)/%.cpp | dirs
 $(BUILD_DIR)/%.o: %.cpp | dirs
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(DEPFLAGS) -c $< -o $@
 
-# Test binaries
-$(BUILD_DIR)/%$(BIN_EXT): $(BUILD_DIR)/%.o $(LIB_OBJS) $(EXTRA_OBJS) $(SYMLINK_DEP)
+# Test binaries (100% header-only; links only system sqlite3)
+$(BUILD_DIR)/%$(BIN_EXT): $(BUILD_DIR)/%.o $(EXTRA_OBJS) $(SYMLINK_DEP)
 	$(CXX) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
 
 #$(BUILD_DIR)/$(DRAFT_DIR)/%$(BIN_EXT).out: $(BUILD_DIR)/%.o $(LIB_OBJS) $(EXTRA_OBJS) $(SYMLINK_DEP)

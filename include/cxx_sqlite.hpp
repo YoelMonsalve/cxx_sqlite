@@ -203,11 +203,31 @@ namespace cxx_sqlite3
         { return sqlite3_errstr(ev); }
     };
 
-    /** prototypes */
-    std::error_code make_error_code(error ev) noexcept;
-    std::error_code make_error_code(error_code_t ev) noexcept;
-    std::error_condition make_error_condition(error ev) noexcept;
-    std::error_condition make_error_condition(error_code_t ev) noexcept;
+    /** Error category singleton instance */
+    inline const std::error_category &error_category_inst() noexcept {
+        static const cxx_sqlite3::error_category ecat{};
+        return ecat;
+    }
+
+    /* error code from error code enumerator */
+    inline std::error_code make_error_code(error ev) noexcept {
+        return std::error_code(static_cast<int>(ev), error_category_inst());
+    }
+
+    /* error code from primitive type error_code_t */
+    inline std::error_code make_error_code(error_code_t ev) noexcept {
+        return std::error_code(static_cast<int>(ev), error_category_inst());
+    }
+
+    /* error condition from error code enumerator */
+    inline std::error_condition make_error_condition(error ev) noexcept {
+        return std::error_condition(static_cast<int>(ev), error_category_inst());
+    }
+
+    /* error condition from primitive type error_code_t */
+    inline std::error_condition make_error_condition(error_code_t ev) noexcept {
+        return std::error_condition(static_cast<int>(ev), error_category_inst());
+    }
 
     using std::error_code;
     using std::error_condition;
@@ -246,6 +266,13 @@ namespace cxx_sqlite3
     }
     inline bool operator!=(error ev, const ErrorCode &ec) noexcept {
         return !(ev == ec);
+    }
+
+    inline bool operator==(const return_code_t rc, const ErrorCode &ec) noexcept {
+        return rc == ec.value();
+    }
+    inline bool operator!=(const return_code_t rc, const ErrorCode &ec) noexcept {
+        return rc != ec.value();
     }
 }
 
@@ -341,11 +368,11 @@ namespace cxx_sqlite3
             : exception((std::string{"error: sqlite3_close: "} + msg).c_str()) {}
     };
 
-    /** TODO: constant exceptions */
+    /** Constant exceptions */
     struct const_exception
     {
-        static const exception ex1;
-        static const exception no_exception;
+        inline static const exception ex1 = exception("my exception 1");
+        inline static const exception no_exception = exception("no exception");
     };    
     
 
@@ -1259,8 +1286,8 @@ namespace cxx_sqlite3
     };
 
     struct bind_handler {
-        static sqlite3_destructor_type bind_static;
-        static sqlite3_destructor_type bind_transient;
+        inline static sqlite3_destructor_type bind_static = SQLITE_STATIC;
+        inline static sqlite3_destructor_type bind_transient = SQLITE_TRANSIENT;
     };
 
     using blob_t = generic_value::blob_t;
@@ -2918,44 +2945,5 @@ namespace cxx_sqlite3
     inline void *malloc64(uint64 n) { return sqlite3_malloc64(n); }
 }
 
-/* =========================================================================
- * Section J: Inlined Core Definitions (Header-Only Runtime Support)
- * ========================================================================= */
-
-namespace cxx_sqlite3
-{
-    /* Error category singleton instance */
-    inline const std::error_category &error_category_inst() noexcept {
-        static const cxx_sqlite3::error_category ecat{};
-        return ecat;
-    }
-
-    /* Error code construction */
-    inline std::error_code make_error_code(error ev) noexcept {
-        return std::error_code(static_cast<int>(ev), error_category_inst());
-    }
-
-    inline std::error_code make_error_code(error_code_t ev) noexcept {
-        return std::error_code(static_cast<int>(ev), error_category_inst());
-    }
-
-    /* Error condition construction */
-    inline std::error_condition make_error_condition(error ev) noexcept {
-        return std::error_condition(static_cast<int>(ev), error_category_inst());
-    }
-
-    inline std::error_condition make_error_condition(error_code_t ev) noexcept {
-        return std::error_condition(static_cast<int>(ev), error_category_inst());
-    }
-
-    /* Comparison between return_code_t and ErrorCode */
-    inline bool operator==(const return_code_t rc, const ErrorCode &ec) noexcept {
-        return rc == ec.value();
-    }
-
-    inline bool operator!=(const return_code_t rc, const ErrorCode &ec) noexcept {
-        return rc != ec.value();
-    }
-}
 
 #endif /* CXX_SQLITE_HPP_ */

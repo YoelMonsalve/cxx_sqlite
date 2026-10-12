@@ -66,47 +66,6 @@ PREAMBLE_TEMPLATE = """/**
 
 """
 
-SECTION_J_INLINES = """/* =========================================================================
- * Section J: Inlined Core Definitions (Header-Only Runtime Support)
- * ========================================================================= */
-
-namespace cxx_sqlite3
-{
-    /* Error category singleton instance */
-    inline const std::error_category &error_category_inst() noexcept {
-        static const cxx_sqlite3::error_category ecat{};
-        return ecat;
-    }
-
-    /* Error code construction */
-    inline std::error_code make_error_code(error ev) noexcept {
-        return std::error_code(static_cast<int>(ev), error_category_inst());
-    }
-
-    inline std::error_code make_error_code(error_code_t ev) noexcept {
-        return std::error_code(static_cast<int>(ev), error_category_inst());
-    }
-
-    /* Error condition construction */
-    inline std::error_condition make_error_condition(error ev) noexcept {
-        return std::error_condition(static_cast<int>(ev), error_category_inst());
-    }
-
-    inline std::error_condition make_error_condition(error_code_t ev) noexcept {
-        return std::error_condition(static_cast<int>(ev), error_category_inst());
-    }
-
-    /* Comparison between return_code_t and ErrorCode */
-    inline bool operator==(const return_code_t rc, const ErrorCode &ec) noexcept {
-        return rc == ec.value();
-    }
-
-    inline bool operator!=(const return_code_t rc, const ErrorCode &ec) noexcept {
-        return rc != ec.value();
-    }
-}
-"""
-
 def process_headers(include_dir):
     system_includes = set()
     section_contents = []
@@ -196,8 +155,6 @@ def amalgamate(include_dir, output_path):
         out.append(content)
         out.append("\n\n")
 
-    # Write inlined definitions
-    out.append(SECTION_J_INLINES)
     out.append("\n#endif /* CXX_SQLITE_HPP_ */\n")
 
     output_content = "".join(out)

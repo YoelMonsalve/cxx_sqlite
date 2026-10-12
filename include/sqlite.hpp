@@ -103,8 +103,8 @@ namespace cxx_sqlite3
     };
 
     struct bind_handler {
-        static sqlite3_destructor_type bind_static;
-        static sqlite3_destructor_type bind_transient;
+        inline static sqlite3_destructor_type bind_static = SQLITE_STATIC;
+        inline static sqlite3_destructor_type bind_transient = SQLITE_TRANSIENT;
     };
 
     using blob_t = generic_value::blob_t;

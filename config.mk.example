@@ -1,0 +1,6 @@
+# config.mk.example
+# Copy to config.mk to customize local build options
+#
+# Examples:
+#   DEFINES += -DNO_EXPLICIT
+#   DEFINES += -DCXX_SQLITE3_DEBUG

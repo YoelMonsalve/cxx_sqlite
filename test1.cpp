@@ -204,7 +204,7 @@ int main(int argc, char** argv)
 	/** insert record, and flush statement */
 	int iCol;
 	int val = 1;
-	SQLITE3_OINT VAL_INT = val;
+	SQLITE3_OGEN VAL_INT = val;
 	double salary = 300.22;
 
 	#if 0

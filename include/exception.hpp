@@ -102,17 +102,40 @@ namespace cxx_sqlite3
     };    
     
 
-    /** Object exception */
-    struct exception_object: public exception
+    /** Generic value exceptions */
+    struct exception_value: public exception
     {
-        exception_object(const char *msg) 
-            : exception((std::string{"cxx_sqlite3 error: object: "} + msg).c_str()) {}
+        explicit exception_value(const char *msg) 
+            : exception((std::string{"cxx_sqlite3 error: value: "} + msg).c_str()) {}
+        explicit exception_value(const std::string &msg) 
+            : exception((std::string{"cxx_sqlite3 error: value: "} + msg).c_str()) {}
     };
-    struct exception_object_bad_cast: public exception_object
+
+    struct exception_value_bad_cast: public exception_value
     {
-        exception_object_bad_cast() 
-            : exception_object("cannot cast value") {}
+    private:
+        std::string from_type_;
+        std::string to_type_;
+        std::string reason_;
+
+    public:
+        explicit exception_value_bad_cast(
+            std::string from_type = "unknown_type",
+            std::string to_type = "unknown_type",
+            std::string reason = "unknown_reason")
+            : exception_value("cannot cast from '" + from_type + "' to '" + to_type + "': " + reason),
+              from_type_(std::move(from_type)),
+              to_type_(std::move(to_type)),
+              reason_(std::move(reason)) {}
+
+        const std::string &from_type() const noexcept { return from_type_; }
+        const std::string &to_type() const noexcept { return to_type_; }
+        const std::string &reason() const noexcept { return reason_; }
     };
+
+    /** Backward compatibility aliases */
+    using exception_object = exception_value;
+    using exception_object_bad_cast = exception_value_bad_cast;
 }
 
 typedef cxx_sqlite3::exception sqlite3_exception;

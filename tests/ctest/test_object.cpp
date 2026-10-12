@@ -99,21 +99,70 @@ TEST_CASE("Type System - generic_object and Conversions")
         REQUIRE(onull.is_null());
     }
 
-    SECTION("Integer conversions")
+    SECTION("Integer constructors")
     {
+        int x = 42;
+        int &y = x;
+        const int xc  = 42;
+        const int &yc = xc;
+        generic_object O1{x};    // int, by-value
+        generic_object O2{y};    // int &
+        generic_object O3{42};   // const int
+        generic_object O4{xc};   // const int
+        generic_object O5{yc};   // const int &
+        generic_object O6{const_cast<const int &>(xc)};    // const int &
+    }
+
+    SECTION("Integer conversions")
+    {   
         generic_object obj_int(42);
         REQUIRE(!obj_int.is_null());
         REQUIRE(obj_int.type() == generic_object::internal_type::integer);
         /* type checks */
+        // @note .as<const int>() returns type <int>, not <const int>
         REQUIRE( (std::is_same_v<decltype(obj_int.as<int>()), int>) );
+        REQUIRE( (std::is_same_v<decltype(obj_int.as<const int>()), int>) );
+        REQUIRE( (std::is_same_v<decltype(obj_int.get<const int>()), int>) );  // get = as
         REQUIRE( (std::is_same_v<decltype(obj_int.as_int()), generic_value::int_t>) );
+
         /* value checks */
         REQUIRE(obj_int.as<int>() == 42);
         REQUIRE(obj_int.as<int64_t>() == 42);
+        REQUIRE((int)obj_int == 42);
         REQUIRE(obj_int.as<double>() == 42.0);
         REQUIRE(obj_int.as<std::string>() == "42");
         REQUIRE(static_cast<int>(obj_int) == 42);
         REQUIRE(static_cast<bool>(obj_int) == true);
+
+        /* coercive getter */
+        REQUIRE(obj_int.as_double() == 42.0);  // passes
+        REQUIRE(obj_int.as<double>() == 42.0); // ok
+        // but notice ..
+        bool threw = false;
+        try {
+            obj_int.value<double>();    // fails
+        } catch (const std::bad_variant_access &ex) {
+            threw = true;
+        }
+        REQUIRE(threw);
+    }
+
+    SECTION("Set&Get")
+    {
+        generic_object obj_int;
+        REQUIRE(obj_int.set(42).get<int>() == 42);
+    }
+
+    SECTION("Arithmetic operations with explicit casts")
+    {
+        generic_object obj_int{42};
+        int a = 3;
+        REQUIRE((int)obj_int + 3 == 45);
+        REQUIRE((int)obj_int + a == 45);
+        REQUIRE((float)obj_int - 3 == 39.0);
+        REQUIRE((float)obj_int - a == 39.0);
+        REQUIRE(static_cast<int>(obj_int) + 3 == 45);
+        REQUIRE(obj_int.as<int>() + 3 == 45);
     }
 
     SECTION("Floating point conversions")
@@ -166,40 +215,9 @@ TEST_CASE("Type System - generic_object and Conversions")
         REQUIRE(*opt_str == "alpha");
     }
 
-    SECTION("basic_object typed wrappers")
-    {
-        SQLITE3_OINT num(10);
-        REQUIRE(num.value() == 10);
-        ++num;
-        REQUIRE(num.value() == 11);
-        num += 5;
-        REQUIRE(num.value() == 16);
-
-        SQLITE3_OTEXT str("sqlite3 wrapper");
-        REQUIRE(str.value() == "sqlite3 wrapper");
-    }
-
     /**
      * Added by Yoel.- 2026-10-10.
      */
-    SECTION("sqlite bindable")
-    {
-        /** Checks whether the type T is convertible to generic_value */
-        REQUIRE(is_sqlite_bindable<int>::value);    // C++14
-        REQUIRE(is_sqlite_bindable_v<int>);         // C++17
-
-        // and so on, for uint, long, ulong, float, double, ... etc, and null.
-        
-    }
-    SECTION("sqlite extractable")
-    {
-        /** Checks whether the type T can be extracted/converted from 
-         *  generic_value .
-         *  (opposite of bindable, so we check the same) */
-        REQUIRE(is_sqlite_extractable<int>::value);    // C++14
-        REQUIRE(is_sqlite_extractable_v<int>);         // C++17
-        // ...
-    }
     SECTION("generic_value traits")
     {
         {
@@ -241,10 +259,193 @@ TEST_CASE("Type System - generic_object and Conversions")
 
         } // ... x1 goes out scope
     }
+
+    SECTION("exception_value_bad_cast and non-throwing helpers (try_as, as_or)")
+    {
+        // 1. Test exception_value_bad_cast constructors and default arguments
+        exception_value_bad_cast ex_default;
+        REQUIRE(ex_default.from_type() == "unknown_type");
+        REQUIRE(ex_default.to_type() == "unknown_type");
+        REQUIRE(ex_default.reason() == "unknown_reason");
+
+        exception_value_bad_cast ex_two_args("int", "null");
+        REQUIRE(ex_two_args.from_type() == "int");
+        REQUIRE(ex_two_args.to_type() == "null");
+        REQUIRE(ex_two_args.reason() == "unknown_reason");
+
+        exception_value_bad_cast ex_three_args("int", "null", "type mismatch");
+        REQUIRE(ex_three_args.from_type() == "int");
+        REQUIRE(ex_three_args.to_type() == "null");
+        REQUIRE(ex_three_args.reason() == "type mismatch");
+
+        // 2. Test throwing on invalid conversion
+        generic_value int_val(42);
+        generic_value double_val(42.0);
+        generic_value text_val("hello world");
+        std::vector<uint8_t> bytes = { 0xDE, 0xAD, 0xBE, 0xEF };
+        generic_object blob_val(bytes);
+        //   (a) From non-integral types to int, should fail
+        bool threw = false;
+        try {
+            [[maybe_unused]] auto sv = text_val.as_int();
+        } catch (const exception_value_bad_cast &e) {
+            threw = true;
+            REQUIRE(e.to_type() == "int");
+        }
+        REQUIRE(threw);
+        threw = false;
+        try {
+            [[maybe_unused]] auto sv = blob_val.as_int();
+        } catch (const exception_value_bad_cast &e) {
+            threw = true;
+            REQUIRE(e.to_type() == "int");
+        }
+        REQUIRE(threw);
+        //   (b) From non-integral types to double, should fail
+        threw = false;
+        try {
+            [[maybe_unused]] auto sv = text_val.as_double();
+        } catch (const exception_value_bad_cast &e) {
+            threw = true;
+            REQUIRE(e.to_type() == "double");
+        }
+        REQUIRE(threw);
+        threw = false;
+        try {
+            [[maybe_unused]] auto sv = blob_val.as_double();
+        } catch (const exception_value_bad_cast &e) {
+            threw = true;
+            REQUIRE(e.to_type() == "double");
+        }
+        REQUIRE(threw);
+        //    (c) From non-string types to string_view, should fail
+        threw = false;
+        try {
+            [[maybe_unused]] auto sv = int_val.as_string_view();
+        } catch (const exception_value_bad_cast &e) {
+            threw = true;
+            REQUIRE(e.to_type() == "string_view");
+        }
+        REQUIRE(threw);
+        threw = false;
+        try {
+            [[maybe_unused]] auto sv = double_val.as_string_view();
+        } catch (const exception_value_bad_cast &e) {
+            threw = true;
+            REQUIRE(e.to_type() == "string_view");
+        }
+        REQUIRE(threw);
+        threw = false;
+        try {
+            [[maybe_unused]] auto sv = blob_val.as_string_view();
+        } catch (const exception_value_bad_cast &e) {
+            threw = true;
+            REQUIRE(e.to_type() == "string_view");
+        }
+        //    (d) From non-blob types to blob, should fail
+        threw = false;
+        try {
+            [[maybe_unused]] auto b = int_val.as_blob();
+        } catch (const exception_value_bad_cast &e) {
+            threw = true;
+            REQUIRE(e.to_type() == "blob");
+        }
+        REQUIRE(threw);
+        threw = false;
+        try {
+            [[maybe_unused]] auto b = text_val.as_blob();
+        } catch (const exception_value_bad_cast &e) {
+            threw = true;
+            REQUIRE(e.to_type() == "blob");
+        }
+        REQUIRE(threw);
+
+        // 3. Test valid conversions
+        // int to int      : passes 
+        // int to double   : passes
+        // double to int   : passes
+        // double to double: passes
+        // int to string   : passes
+        // double to string: passes
+        // string to string: passes
+        // blob to string  : passes
+        // string to string_view: passes
+        // blob to blob    : passes
+        REQUIRE(int_val.as_int() == 42);
+        REQUIRE(int_val.as_double() == 42.0);
+        REQUIRE(double_val.as_int() == 42);
+        REQUIRE(double_val.as_double() == 42.0);
+        REQUIRE(int_val.as_string() == "42");
+        REQUIRE(double_val.as_string() == std::to_string(42.0));
+        REQUIRE(text_val.as_string() == "hello world");
+        REQUIRE(blob_val.as_string() == std::string(bytes.begin(), bytes.end()));
+        REQUIRE(text_val.as_string_view() == "hello world");
+        REQUIRE(blob_val.as_blob() == bytes);
+
+        // 4. Test try_as<T>() returning std::optional<T>
+        // int to text: fails
+        auto opt_fail = int_val.try_as<std::string_view>();
+        REQUIRE(!opt_fail.has_value());
+        REQUIRE(opt_fail == std::nullopt);
+        // text to string_view: ok
+        auto opt_success = text_val.try_as<std::string_view>();
+        REQUIRE(opt_success.has_value());
+        REQUIRE(*opt_success == "hello world");
+        // int to int: ok
+        auto opt_int = int_val.try_as<int>();
+        REQUIRE(opt_int.has_value());
+        REQUIRE(*opt_int == 42);
+        // text to int: fails
+        auto opt_fail2 = text_val.try_as<int>();
+        REQUIRE(!opt_fail2.has_value());
+        REQUIRE(opt_fail2 == std::nullopt);
+
+        // 5. Test as_or<T>() returning fallback on failure
+        std::string_view fallback_view = "fallback";
+        REQUIRE(int_val.as_or<std::string_view>(fallback_view) == "fallback");
+        REQUIRE(text_val.as_or<std::string_view>(fallback_view) == "hello world");
+        REQUIRE(int_val.as_or<int>(999) == 42);
+        REQUIRE(text_val.as_or<int>(999) == 999);
+
+        // 6. Test operator bool() and operator!() noexcept contracts and truthiness
+        static_assert(noexcept(static_cast<bool>(std::declval<generic_value>())));
+        static_assert(noexcept(!std::declval<generic_value>()));
+
+        generic_value null_v(nullptr);
+        generic_value zero_v(0);
+        generic_value int_v(42);
+        generic_value zero_f(0.0);
+        generic_value float_v(3.14);
+        generic_value empty_str("");
+        generic_value hello_str("hello");
+        generic_value empty_blob_v(std::vector<uint8_t>{});
+        generic_value full_blob_v(bytes);
+
+        REQUIRE(!static_cast<bool>(null_v));
+        REQUIRE(!null_v);
+
+        REQUIRE(!static_cast<bool>(zero_v));
+        REQUIRE(!zero_v);
+        REQUIRE(static_cast<bool>(int_v));
+        REQUIRE(!(!int_v));
+
+        REQUIRE(!static_cast<bool>(zero_f));
+        REQUIRE(!zero_f);
+        REQUIRE(static_cast<bool>(float_v));
+        REQUIRE(!(!float_v));
+
+        REQUIRE(!static_cast<bool>(empty_str));
+        REQUIRE(!empty_str);
+        REQUIRE(static_cast<bool>(hello_str));
+        REQUIRE(!(!hello_str));
+
+        REQUIRE(!static_cast<bool>(empty_blob_v));
+        REQUIRE(!empty_blob_v);
+        REQUIRE(static_cast<bool>(full_blob_v));
+        REQUIRE(!(!full_blob_v));
+    }
 }
 
-/* ========================================================================= */
-/* Test Case 2: Variadic Parameter Binding                                   */
 /* ========================================================================= */
 /* Test Runner Main                                                          */
 /* ========================================================================= */

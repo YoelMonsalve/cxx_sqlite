@@ -168,7 +168,7 @@ if (emp) {
 }
 ```
 
-### 7. Stream Operators `<<` & `>>` (Pipelining, `exec`, and `eol`)
+### 7. Stream Operators `<<` & `>>` (Pipelining, `exec`, and `eol`) (v1.3)
 
 ```cpp
 // 1. Immediate database pipelining with sequential parameters

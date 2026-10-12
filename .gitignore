@@ -27,3 +27,9 @@ future/
 config.mk
 cxx_sqlite3_config.hpp
 
+# drafts, artifacts, etc
+docs/
+draft/
+drafts/
+
+

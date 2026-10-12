@@ -334,67 +334,6 @@ namespace cxx_sqlite3
     struct value_extractor;
 
     /* =========================================================================
-     * Type Traits for SQLite Value Interoperability
-     * ========================================================================= */
-
-    /**
-     * is_sqlite_bindable<T>
-     * 
-     * Trait to test whether a type T can be converted/bound into a generic_value, 
-     * and therefore binded to a SQLITE3 prepared statement via
-     * the universal object `generic_value`.
-     */
-    template <typename T, typename = void>
-    struct is_sqlite_bindable : std::false_type {};
-
-    template <typename T>
-    struct is_sqlite_bindable<T, std::enable_if_t<std::is_constructible_v<generic_value, const T&>>> : std::true_type {} ;
-
-    template <typename T>
-    inline constexpr bool is_sqlite_bindable_v = is_sqlite_bindable<T>::value;
-
-    /**
-     * is_sqlite_extractable<T>
-     * 
-     * Trait to test whether a type T can be extracted from a generic_value.
-     */
-    template <typename T, typename = void>
-    struct is_sqlite_extractable : std::false_type {};
-
-    /**
-     * Yoel
-     * @remark:   Let's see ..
-     * If I can create an object `general_value` from a value of type <T>
-     * (is_sqlite_bindable), then I can certainly extract a value of that
-     * same type from that object.
-     *
-     * So, either we repeat is_sqlite_extractable === is_sqlite_bindable,
-     * or we deprecate is_sqlite_extractable (and therefore 
-     * is_sqlite_value) at all.
-     */
-
-    template <typename T>
-    struct is_sqlite_extractable<T, std::void_t<
-        decltype(value_extractor<T>::extract(std::declval<const generic_value &>()))
-    >> : std::true_type {};
-
-    template <typename T>
-    inline constexpr bool is_sqlite_extractable_v = is_sqlite_extractable<T>::value;
-
-    /**
-     * is_sqlite_value<T>
-     * 
-     * Checks if a type T supports bidirectional binding and extraction.
-     */
-    template <typename T>
-    struct is_sqlite_value : std::integral_constant<bool,
-        is_sqlite_bindable_v<T> && is_sqlite_extractable_v<T>
-    > {};
-
-    template <typename T>
-    inline constexpr bool is_sqlite_value_v = is_sqlite_value<T>::value;
-
-    /* =========================================================================
      * Value Extractor Implementations
      * ========================================================================= */
 
@@ -471,8 +410,6 @@ namespace cxx_sqlite3
     template <typename T>
     inline T generic_value::as() const {
         using CleanT = remove_cvref_t<T>;
-        static_assert(is_sqlite_extractable_v<CleanT>,
-                      "cxx_sqlite3: Type cannot be extracted from generic_value");
         return static_cast<T>(value_extractor<CleanT>::extract(*this));
     }
 

@@ -206,24 +206,6 @@ TEST_CASE("Type System - generic_object and Conversions")
     /**
      * Added by Yoel.- 2026-10-10.
      */
-    SECTION("sqlite bindable")
-    {
-        /** Checks whether the type T is convertible to generic_value */
-        REQUIRE(is_sqlite_bindable<int>::value);    // C++14
-        REQUIRE(is_sqlite_bindable_v<int>);         // C++17
-
-        // and so on, for uint, long, ulong, float, double, ... etc, and null.
-        
-    }
-    SECTION("sqlite extractable")
-    {
-        /** Checks whether the type T can be extracted/converted from 
-         *  generic_value .
-         *  (opposite of bindable, so we check the same) */
-        REQUIRE(is_sqlite_extractable<int>::value);    // C++14
-        REQUIRE(is_sqlite_extractable_v<int>);         // C++17
-        // ...
-    }
     SECTION("generic_value traits")
     {
         {

@@ -85,7 +85,7 @@ DRAFT_OBJS:= $(DRAFT_BINS:%.out=%.o)
 ALL_OBJS  := $(LIB_OBJS) $(TEST_OBJS) $(EXTRA_OBJS) $(DRAFT_OBJS)
 DEPS      := $(ALL_OBJS:.o=.d)
 
-.PHONY: all test test_catch2 test_raii clean clean_all dirs
+.PHONY: all test test_catch2 test_raii test_amalgamation test_object amalgamate single_header clean clean_all dirs
 .SECONDARY:
 
 .DEFAULT_GOAL := all
@@ -155,6 +155,17 @@ test_object: $(BUILD_DIR)/test_object$(BIN_EXT)
 test_raii: $(BUILD_DIR)/test_raii$(BIN_EXT)
 	@echo "Executing $(BUILD_DIR)/test_raii$(BIN_EXT):"
 	@$(BUILD_DIR)/test_raii$(BIN_EXT)
+
+# Dedicated target to run single-header amalgamation test specifically
+test_amalgamation: $(BUILD_DIR)/test_amalgamation$(BIN_EXT)
+	@echo "Executing $(BUILD_DIR)/test_amalgamation$(BIN_EXT):"
+	@$(BUILD_DIR)/test_amalgamation$(BIN_EXT)
+
+# Singleton header generation target
+amalgamate:
+	python3 scripts/amalgamate.py -i $(INC_DIR) -o $(INC_DIR)/cxx_sqlite.hpp
+
+single_header: amalgamate
 
 clean:
 	-rm -rf $(BUILD_DIR)

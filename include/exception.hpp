@@ -94,11 +94,11 @@ namespace cxx_sqlite3
             : exception((std::string{"error: sqlite3_close: "} + msg).c_str()) {}
     };
 
-    /** TODO: constant exceptions */
+    /** Constant exceptions */
     struct const_exception
     {
-        static const exception ex1;
-        static const exception no_exception;
+        inline static const exception ex1 = exception("my exception 1");
+        inline static const exception no_exception = exception("no exception");
     };    
     
 

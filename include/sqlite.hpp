@@ -576,10 +576,6 @@ namespace cxx_sqlite3
             }
             return bind_one(iCol, *opt);
         }
-        template <typename T>
-        ErrorCode bind_one(col_index_t iCol, const basic_object<T> &val) {
-            return bind_one(iCol, static_cast<const generic_value &>(val));
-        }
 
         /* Named bind_one overloads */
         template <typename T>

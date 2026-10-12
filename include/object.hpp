@@ -50,6 +50,11 @@ namespace cxx_sqlite3
     /* C++20 */
     //using std::remove_cvref_t;
 
+
+    /* =========================================================================
+     * Definition of the Base Class
+     * ========================================================================= */
+
     /**
      * generic_value
      * 
@@ -99,11 +104,14 @@ namespace cxx_sqlite3
         >;
  
     protected:
+        //@note  is nullptr defaulted internally to 0 (zero) ?
         value_storage storage_ = nullptr;
     
     public:
         /* Default / NULL constructors */
+        // @attention  consider changing this empty case to storage_(int)
         generic_value() noexcept : storage_(nullptr) {}
+
         generic_value(std::nullptr_t) noexcept : storage_(nullptr) {}
         explicit generic_value(void *p) : storage_(p ? value_storage(blob_t{}) : value_storage(nullptr)) {}
 
@@ -114,9 +122,9 @@ namespace cxx_sqlite3
                 storage_ = static_cast<double>(val);
             } else if constexpr (std::is_enum_v<T>) {
                 using Underlying = std::underlying_type_t<T>;
-                storage_ = static_cast<int64_t>(static_cast<Underlying>(val));
+                storage_ = static_cast<int_t>(static_cast<Underlying>(val));
             } else {
-                storage_ = static_cast<int64_t>(val);
+                storage_ = static_cast<int_t>(val);
             }
         }
 
@@ -179,17 +187,18 @@ namespace cxx_sqlite3
         /* Coercion and conversion methods */
         int_t 
         as_int() const {
-            return std::visit([](const auto &arg) -> int64_t {
+            return std::visit([](const auto &arg) -> int_t {
                 using T = remove_cvref_t<decltype(arg)>;
                 if constexpr (std::is_same_v<T, null_t>) {
                     return 0;
                 } else if constexpr (std::is_same_v<T, int_t>) {
                     return arg;
                 } else if constexpr (std::is_same_v<T, double_t>) {
-                    return static_cast<int64_t>(arg);
+                    return static_cast<int_t>(arg);
                 } else if constexpr (std::is_same_v<T, text_t>) {
                     try { return std::stoll(arg); } catch (...) { return 0; }
                 } else {
+                    /** @annotation  Should it throw (e.g., invalid_argument ? */
                     return 0;
                 }
             }, storage_);
@@ -267,10 +276,16 @@ namespace cxx_sqlite3
         /* Type-safe extraction template */
         template <typename T>
         T as() const;
+        template <typename T>
+        T get() const { return as<T>(); }
+
+        /* Helper method (get's complement) */
+        template <typename T>
+        generic_value &set(T val) { return *this = val; }
 
         /* Implicit conversions for ergonomic natural usage */
         operator int() const { return static_cast<int>(as_int()); }
-        operator int64_t() const { return as_int(); }
+        operator int_t() const { return as_int(); }
         operator double() const { return as_double(); }
         operator float() const { return static_cast<float>(as_double()); }
         operator std::string() const { return as_string(); }
@@ -280,6 +295,7 @@ namespace cxx_sqlite3
             return !is_null() && (as_int() != 0 || as_double() != 0.0 || !as_string().empty());
         }
 
+        // @attention  Can this method throw? is not, protect it with noexcept
         bool operator!() const { return !static_cast<bool>(*this); }
 
         bool operator==(const generic_value &other) const {
@@ -345,7 +361,7 @@ namespace cxx_sqlite3
 
     template <typename T>
     struct is_sqlite_extractable<T, std::void_t<
-        decltype(value_extractor<remove_cvref_t<T>>::extract(std::declval<const generic_value &>()))
+        decltype(value_extractor<T>::extract(std::declval<const generic_value &>()))
     >> : std::true_type {};
 
     template <typename T>
@@ -379,13 +395,33 @@ namespace cxx_sqlite3
             std::is_same_v<T, generic_value::blob_t>;
     }
 
-    /* Primary converter template for built-in supported types */
+    /** 
+     * Primary converter template for built-in supported types
+     *
+     * AGENT: DO NOT REMOVE THIS NOTE
+     * =======================================
+     * @note  The extractor first decay the provided type to its
+     *        cv-unqualified primitive: `CleanT = remove_cvref_t<T>`.
+     *        Then, tries to match the proper conversion operator
+     *        depending of the unqualified type `CleanT`.
+     *        
+     *        @@@ Finally, return the result sometimes casted to 
+     *        `CleanT` (integer, enum, floating), sometimes as one 
+     *        of the native types of generic_value (string, blob, 
+     *        bool).
+     *        
+     * @remark  (in line with above) Should not we adopt a consistent 
+     *        criteria here?
+     *        Either: 
+     *        (i)   always T, or 
+     *        (ii)  always CleanT, or 
+     *        (iii) always the native type supported by generic_value.
+     */
     template <typename T, typename Enable>
     struct value_extractor {
-        static_assert(detail::is_builtin_extractable_v<remove_cvref_t<T>>,
-                      "cxx_sqlite3: Unsupported type for generic_value::as<T>()");
-
         using CleanT = remove_cvref_t<T>;
+        static_assert(detail::is_builtin_extractable_v<CleanT>,
+                      "cxx_sqlite3: Unsupported type for generic_value::as<T>()");
 
         static CleanT extract(const generic_value &v) {
             if constexpr (std::is_enum_v<CleanT>) {
@@ -431,75 +467,8 @@ namespace cxx_sqlite3
         null_object() : generic_value(nullptr) {}
     };
     typedef null_object SQLITE3_ONULL;
-
-    /** Typed basic_object<T> wrapper maintaining author's API */
-    template <class T>
-    struct basic_object : public generic_value
-    {
-        using value_type = T;
-        using type = basic_object;
-
-        basic_object() : generic_value() {}
-        basic_object(const T &v) : generic_value(v) {}
-        basic_object(T &&v) : generic_value(std::move(v)) {}
-        basic_object(const char *s) : generic_value(s) {}
-        explicit basic_object(const generic_value &o) : generic_value(o) {}
-        explicit basic_object(generic_value &&o) : generic_value(std::move(o)) {}
-
-        T value() const { return as<T>(); }
-        T operator()() const { return as<T>(); }
-        operator T() const { return as<T>(); }
-
-        template <typename U = T, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
-        basic_object &operator++() {
-            storage_ = as_int() + 1;
-            return *this;
-        }
-        template <typename U = T, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
-        basic_object operator++(int) {
-            basic_object copy(*this);
-            ++(*this);
-            return copy;
-        }
-        template <typename U = T, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
-        basic_object &operator--() {
-            storage_ = as_int() - 1;
-            return *this;
-        }
-        template <typename U = T, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
-        basic_object operator--(int) {
-            basic_object copy(*this);
-            --(*this);
-            return copy;
-        }
-        template <typename U = T, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
-        basic_object &operator+=(T inc) {
-            if constexpr (std::is_floating_point_v<U>) {
-                storage_ = as_double() + static_cast<double>(inc);
-            } else {
-                storage_ = as_int() + static_cast<int64_t>(inc);
-            }
-            return *this;
-        }
-        template <typename U = T, typename = std::enable_if_t<std::is_arithmetic_v<U>>>
-        basic_object &operator-=(T dec) {
-            if constexpr (std::is_floating_point_v<U>) {
-                storage_ = as_double() - static_cast<double>(dec);
-            } else {
-                storage_ = as_int() - static_cast<int64_t>(dec);
-            }
-            return *this;
-        }
-    };
 }
 
-typedef cxx_sqlite3::basic_object<int> SQLITE3_OINT;           // equivalent to sqlite3 INTEGER
-typedef cxx_sqlite3::basic_object<char> SQLITE3_OCHAR;
-typedef cxx_sqlite3::basic_object<float> SQLITE3_OFLOAT;
-typedef cxx_sqlite3::basic_object<double> SQLITE3_ODOUBLE;     // equivalent to sqlite3 DOUBLE/REAL
-typedef cxx_sqlite3::basic_object<cxx_sqlite3::generic_value::text_t> SQLITE3_OTEXT;  // equivalent to sqlite3 TEXT
-typedef cxx_sqlite3::basic_object<std::string> SQLITE3_OSTRING;
-typedef cxx_sqlite3::basic_object<cxx_sqlite3::generic_value::blob_t> SQLITE3_OBLOB; // equivalent to sqlite3 BLOB
-typedef cxx_sqlite3::generic_value SQLITE3_OGEN;
+using SQLITE3_OGEN = cxx_sqlite3::generic_value;
 
 #endif

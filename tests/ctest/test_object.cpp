@@ -99,21 +99,56 @@ TEST_CASE("Type System - generic_object and Conversions")
         REQUIRE(onull.is_null());
     }
 
-    SECTION("Integer conversions")
+    SECTION("Integer constructors")
     {
+        int x = 42;
+        int &y = x;
+        const int xc  = 42;
+        const int &yc = xc;
+        generic_object O1{x};    // int, by-value
+        generic_object O2{y};    // int &
+        generic_object O3{42};   // const int
+        generic_object O4{xc};   // const int
+        generic_object O5{yc};   // const int &
+        generic_object O6{const_cast<const int &>(xc)};    // const int &
+    }
+
+    SECTION("Integer conversions")
+    {   
         generic_object obj_int(42);
         REQUIRE(!obj_int.is_null());
         REQUIRE(obj_int.type() == generic_object::internal_type::integer);
         /* type checks */
+        // @note .as<const int>() returns type <int>, not <const int>
         REQUIRE( (std::is_same_v<decltype(obj_int.as<int>()), int>) );
+        REQUIRE( (std::is_same_v<decltype(obj_int.as<const int>()), int>) );
+        REQUIRE( (std::is_same_v<decltype(obj_int.get<const int>()), int>) );  // get = as
         REQUIRE( (std::is_same_v<decltype(obj_int.as_int()), generic_value::int_t>) );
+
         /* value checks */
         REQUIRE(obj_int.as<int>() == 42);
         REQUIRE(obj_int.as<int64_t>() == 42);
+        REQUIRE((int)obj_int == 42);
         REQUIRE(obj_int.as<double>() == 42.0);
         REQUIRE(obj_int.as<std::string>() == "42");
         REQUIRE(static_cast<int>(obj_int) == 42);
         REQUIRE(static_cast<bool>(obj_int) == true);
+    }
+
+    SECTION("Set&Get")
+    {
+        generic_object obj_int;
+        REQUIRE(obj_int.set(42).get<int>() == 42);
+    }
+
+    SECTION("Arithmetic operations with implicit conversions")
+    {
+        generic_object obj_int{42};
+        int a = 3;
+        REQUIRE((int)obj_int + 3 == 45);
+        REQUIRE((int)obj_int + a == 45);
+        REQUIRE((float)obj_int - 3 == 39.0);
+        REQUIRE((float)obj_int - a == 39.0);
     }
 
     SECTION("Floating point conversions")
@@ -164,19 +199,6 @@ TEST_CASE("Type System - generic_object and Conversions")
         auto opt_str = text_val.as<std::optional<std::string>>();
         REQUIRE(opt_str.has_value());
         REQUIRE(*opt_str == "alpha");
-    }
-
-    SECTION("basic_object typed wrappers")
-    {
-        SQLITE3_OINT num(10);
-        REQUIRE(num.value() == 10);
-        ++num;
-        REQUIRE(num.value() == 11);
-        num += 5;
-        REQUIRE(num.value() == 16);
-
-        SQLITE3_OTEXT str("sqlite3 wrapper");
-        REQUIRE(str.value() == "sqlite3 wrapper");
     }
 
     /**

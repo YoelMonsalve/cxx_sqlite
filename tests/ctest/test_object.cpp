@@ -141,7 +141,7 @@ TEST_CASE("Type System - generic_object and Conversions")
         REQUIRE(obj_int.set(42).get<int>() == 42);
     }
 
-    SECTION("Arithmetic operations with implicit conversions")
+    SECTION("Arithmetic operations with explicit casts")
     {
         generic_object obj_int{42};
         int a = 3;
@@ -149,6 +149,8 @@ TEST_CASE("Type System - generic_object and Conversions")
         REQUIRE((int)obj_int + a == 45);
         REQUIRE((float)obj_int - 3 == 39.0);
         REQUIRE((float)obj_int - a == 39.0);
+        REQUIRE(static_cast<int>(obj_int) + 3 == 45);
+        REQUIRE(obj_int.as<int>() + 3 == 45);
     }
 
     SECTION("Floating point conversions")

@@ -22,3 +22,8 @@ git-command.sh
 
 # Artifacts, future plans, etc
 future/
+
+# Local configuration overrides
+config.mk
+cxx_sqlite3_config.hpp
+

@@ -32,6 +32,20 @@
 #include "cpp_version.hpp"
 #include "exception.hpp"
 
+#if __has_include("cxx_sqlite3_config.hpp")
+    #include "cxx_sqlite3_config.hpp"
+#elif __has_include("../cxx_sqlite3_config.hpp")
+    #include "../cxx_sqlite3_config.hpp"
+#endif
+
+#ifndef CXX_SQLITE3_EXPLICIT_CONV
+    #if defined(CXX_SQLITE3_NO_EXPLICIT) || defined(NO_EXPLICIT)
+        #define CXX_SQLITE3_EXPLICIT_CONV
+    #else
+        #define CXX_SQLITE3_EXPLICIT_CONV explicit
+    #endif
+#endif
+
 /**
  * @todo: Consider adding support for exceptions.
  * 
@@ -104,12 +118,10 @@ namespace cxx_sqlite3
         >;
  
     protected:
-        //@note  is nullptr defaulted internally to 0 (zero) ?
         value_storage storage_ = nullptr;
     
     public:
         /* Default / NULL constructors */
-        // @attention  consider changing this empty case to storage_(int)
         generic_value() noexcept : storage_(nullptr) {}
 
         generic_value(std::nullptr_t) noexcept : storage_(nullptr) {}
@@ -283,15 +295,17 @@ namespace cxx_sqlite3
         template <typename T>
         generic_value &set(T val) { return *this = val; }
 
-        /* Implicit conversions for ergonomic natural usage */
-        operator int() const { return static_cast<int>(as_int()); }
-        operator int_t() const { return as_int(); }
-        operator double() const { return as_double(); }
-        operator float() const { return static_cast<float>(as_double()); }
-        operator std::string() const { return as_string(); }
-        operator std::string_view() const noexcept { return as_string_view(); }
-        operator blob_t() const { return as_blob(); }
-        operator bool() const {
+        /* Conversion operators (governed by CXX_SQLITE3_EXPLICIT_CONV) */
+        CXX_SQLITE3_EXPLICIT_CONV operator int() const { return static_cast<int>(as_int()); }
+        CXX_SQLITE3_EXPLICIT_CONV operator int_t() const { return as_int(); }
+        CXX_SQLITE3_EXPLICIT_CONV operator double() const { return as_double(); }
+        CXX_SQLITE3_EXPLICIT_CONV operator float() const { return static_cast<float>(as_double()); }
+        CXX_SQLITE3_EXPLICIT_CONV operator std::string() const { return as_string(); }
+        CXX_SQLITE3_EXPLICIT_CONV operator std::string_view() const noexcept { return as_string_view(); }
+        CXX_SQLITE3_EXPLICIT_CONV operator blob_t() const { return as_blob(); }
+
+        /* Contextual boolean test: always strictly explicit to prevent accidental arithmetic promotion */
+        explicit operator bool() const {
             return !is_null() && (as_int() != 0 || as_double() != 0.0 || !as_string().empty());
         }
 

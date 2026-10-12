@@ -16,6 +16,14 @@ Interacting with SQLite from native C is robust and high-performing, but the raw
 2. **Natural Ergonomics**: Alternating variadic parameter binding (`":param", value`), range-based `for` iteration over query results, and type-safe column conversions without boilerplate.
 3. **Dual Error-Handling Model**: Support both idiomatic modern C++ exceptions and non-throwing `ErrorCode` inspections based on the `std::error_code` architecture.
 
+### *My story*
+
+I started writing this library about two years ago, required as part of a larger project I was working on. The main purpose was having a practical mean to interact with a small local database that served as backup for the main application.
+
+Lately, I've been leveraging the AI to accelerate the developement of the last parts of my code, and to take it to the next level! (while I keep overseeing and managing the overall process).
+
+So, it is still an *in-progress* work, though it is actually 100% functional (as demonstrated by tests) and everyone can make use of it. *Working on the 2.0-future release !*
+
 ### Why the MIT License?
 This library is distributed under the permissive **MIT License**. SQLite is arguably the most ubiquitous public domain database in software engineering—powering everything from embedded devices and mobile apps to foundational open-source platforms (such as OpenCode). To ensure `cxx_sqlite3` can be embedded, linked, adapted, and redistributed freely by the global developer community—in open source and commercial systems alike—without viral license constraints, the MIT license was chosen.
 
@@ -160,7 +168,7 @@ if (emp) {
 }
 ```
 
-### 7. Stream Operators `<<` & `>>` (Pipelining, `exec`, and `eol`)
+### 7. Stream Operators `<<` & `>>` (Pipelining, `exec`, and `eol`) (v1.3)
 
 ```cpp
 // 1. Immediate database pipelining with sequential parameters
